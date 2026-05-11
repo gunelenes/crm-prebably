@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gizlilik Politikası — CRM Prebably</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F7F5F0;
+      --surface: #FFFFFF;
+      --text: #1A1A1A;
+      --muted: #6B6B6B;
+      --accent: #1A3C5E;
+      --border: #E5E0D8;
+      --tag-bg: #EEF3F8;
+      --tag-color: #1A3C5E;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+
+    /* Header */
+    header {
+      background: var(--accent);
+      padding: 48px 24px 40px;
+      text-align: center;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      color: #FFFFFF;
+      letter-spacing: -0.3px;
+    }
+
+    header h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(28px, 5vw, 42px);
+      color: #FFFFFF;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    header p {
+      color: rgba(255,255,255,0.65);
+      font-size: 14px;
+      font-weight: 300;
+    }
+
+    /* Container */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* Section */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 16px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .section-num {
+      width: 28px;
+      height: 28px;
+      background: var(--tag-bg);
+      color: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 500;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: -0.3px;
+    }
+
+    .section p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+      margin-bottom: 12px;
+    }
+
+    .section p:last-child { margin-bottom: 0; }
+
+    .section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .section ul li {
+      color: var(--muted);
+      font-size: 15px;
+      padding: 6px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .section ul li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    /* Tag */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--tag-bg);
+      color: var(--tag-color);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+
+    /* Contact box */
+    .contact-box {
+      background: var(--accent);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-top: 16px;
+    }
+
+    .contact-box h3 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 20px;
+      color: #FFFFFF;
+      font-weight: 400;
+      margin-bottom: 8px;
+    }
+
+    .contact-box p {
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .contact-box a {
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid rgba(255,255,255,0.3);
+      padding-bottom: 2px;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    footer p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Date badge */
+    .date-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 32px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">💬</div>
+      <span class="logo-text">CRM Prebably</span>
+    </div>
+    <h1>Gizlilik Politikası</h1>
+    <p>Son güncelleme: Mayıs 2025</p>
+  </header>
+
+  <div class="container">
+
+    <div class="date-badge">
+      📄 Bu politika Türkçe olarak hazırlanmıştır
+    </div>
+
+    <div class="section">
+      <div class="tag">Genel Bakış</div>
+      <p>CRM Prebably ("Uygulama"), işletmelerin WhatsApp ve Instagram üzerinden gelen müşteri mesajlarını tek bir platformdan yönetmesine olanak tanıyan bir CRM uygulamasıdır. Bu gizlilik politikası, uygulamanın hangi verileri topladığını, nasıl kullandığını ve nasıl koruduğunu açıklamaktadır.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h2>Toplanan Veriler</h2>
+      </div>
+      <p>Uygulama aşağıdaki verileri toplar ve işler:</p>
+      <ul>
+        <li>Instagram ve WhatsApp üzerinden gelen mesaj içerikleri</li>
+        <li>Mesaj gönderen kullanıcıların platform ID'leri</li>
+        <li>Mesaj zaman damgaları ve okunma durumları</li>
+        <li>Platform bilgisi (Instagram veya WhatsApp)</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <h2>Verilerin Kullanım Amacı</h2>
+      </div>
+      <p>Toplanan veriler yalnızca aşağıdaki amaçlarla kullanılır:</p>
+      <ul>
+        <li>Müşteri mesajlarının işletme tarafından görüntülenmesi ve yanıtlanması</li>
+        <li>Konuşma geçmişinin kayıt altına alınması</li>
+        <li>Müşteri iletişiminin tek platformdan yönetilmesi</li>
+        <li>Uygulama performansının iyileştirilmesi</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <h2>Verilerin Paylaşımı</h2>
+      </div>
+      <p>CRM Prebably, kullanıcı verilerini üçüncü taraflarla satmaz, kiralamaz veya ticari amaçlarla paylaşmaz.</p>
+      <p>Veriler yalnızca şu durumlarda paylaşılabilir:</p>
+      <ul>
+        <li>Yasal zorunluluk durumunda yetkili makamlarla</li>
+        <li>Meta platformlarının API hizmetleriyle (mesaj iletimi için)</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <h2>Veri Güvenliği</h2>
+      </div>
+      <p>Tüm veriler güvenli sunucularda saklanır. API anahtarları ve hassas bilgiler şifrelenmiş ortam değişkenleri aracılığıyla korunur. Veritabanı erişimi yalnızca yetkili kullanıcılarla sınırlıdır.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <h2>Meta Platform Politikaları</h2>
+      </div>
+      <p>Bu uygulama Meta'nın WhatsApp Business API ve Instagram Graph API hizmetlerini kullanmaktadır. Meta'nın veri işleme politikaları da geçerlidir.</p>
+      <ul>
+        <li>Meta Gizlilik Politikası: facebook.com/privacy/policy</li>
+        <li>WhatsApp Gizlilik Politikası: whatsapp.com/legal/privacy-policy</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h2>Kullanıcı Hakları</h2>
+      </div>
+      <p>Kullanıcılar aşağıdaki haklara sahiptir:</p>
+      <ul>
+        <li>Saklanan verilerinin görüntülenmesini talep etme</li>
+        <li>Verilerinin silinmesini talep etme</li>
+        <li>Veri işleme faaliyetlerine itiraz etme</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <h2>Çerezler</h2>
+      </div>
+      <p>CRM Prebably, oturum yönetimi dışında herhangi bir izleme çerezi kullanmamaktadır. Reklamcılık amaçlı çerez bulunmamaktadır.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <h2>Politika Güncellemeleri</h2>
+      </div>
+      <p>Bu gizlilik politikası zaman zaman güncellenebilir. Önemli değişiklikler uygulama aracılığıyla kullanıcılara bildirilir. Politikanın güncel versiyonu her zaman bu sayfada yayınlanır.</p>
+    </div>
+
+    <div class="contact-box">
+      <h3>İletişim</h3>
+      <p>Gizlilik politikamız hakkında sorularınız için bizimle iletişime geçebilirsiniz.</p>
+      <a href="mailto:info@crm-prebably.com">info@crm-prebably.com</a>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>© 2025 CRM Prebably — Tüm hakları saklıdır.</p>
+  </footer>
+
+</body>
+</html>
