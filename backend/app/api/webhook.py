@@ -20,16 +20,47 @@ async def get_instagram_username(sender_id: str) -> str:
         return f"Instagram Kullanici {sender_id[-6:]}"
 
 async def save_message(db, sender_id, text, mid, platform):
+    from app.models import ActivityLog, Status
+
+    ilk_mesaj_status = db.query(Status).filter(Status.name == "İlk Mesaj").first()
+
     contact = db.query(Contact).filter(Contact.external_id == sender_id).first()
+    is_new = False
+
     if not contact:
+        is_new = True
         real_name = await get_instagram_username(sender_id)
         contact = Contact(
             platform=platform,
             external_id=sender_id,
             name=real_name,
+            status_id=ilk_mesaj_status.id if ilk_mesaj_status else None,
         )
         db.add(contact)
         db.flush()
+
+        # Aktivite logu — ilk mesaj
+        log = ActivityLog(
+            contact_id=contact.id,
+            type="first_message",
+            title="🎉 İlk mesaj gönderildi",
+            description=f"Platform: {platform} | Mesaj: {text[:100]}",
+            new_status_id=ilk_mesaj_status.id if ilk_mesaj_status else None,
+            created_at=datetime.utcnow()
+        )
+        db.add(log)
+
+    elif not contact.status_id and ilk_mesaj_status:
+        contact.status_id = ilk_mesaj_status.id
+        log = ActivityLog(
+            contact_id=contact.id,
+            type="status_change",
+            title="Otomatik statü atandı: İlk Mesaj",
+            description="Daha önce statüsü olmayan kullanıcıya otomatik atandı",
+            new_status_id=ilk_mesaj_status.id,
+            created_at=datetime.utcnow()
+        )
+        db.add(log)
 
     conversation = db.query(Conversation).filter(
         Conversation.contact_id == contact.id,
@@ -57,14 +88,15 @@ async def save_message(db, sender_id, text, mid, platform):
     conversation.unread_count += 1
     conversation.last_message_at = datetime.utcnow()
     db.commit()
-    print(f"Mesaj kaydedildi: {sender_id} → {text}")
+    print(f"Mesaj kaydedildi: {sender_id} → {text} (yeni kullanıcı: {is_new})")
 
     try:
         from app.main import sio
         await sio.emit("new_message", {
             "platform": platform,
             "sender_id": sender_id,
-            "text": text
+            "text": text,
+            "is_new": is_new
         })
     except:
         pass
@@ -239,8 +271,8 @@ async def sync_conversations(db: Session = Depends(get_db)):
 
     synced = 0
     skipped = 0
-    page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages{{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}"
-
+    # page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages{{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}"
+    page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages.limit(10){{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}&limit=20"
     async with httpx.AsyncClient(timeout=60.0) as client:
         while page_url:
             response = await client.get(page_url)

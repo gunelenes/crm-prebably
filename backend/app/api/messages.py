@@ -28,8 +28,15 @@ def get_conversations(db: Session = Depends(get_db)):
             "contact": {
                 "id": conv.contact.id,
                 "name": conv.contact.name,
+                "full_name": conv.contact.full_name,
                 "phone": conv.contact.phone,
                 "external_id": conv.contact.external_id,
+                "status_id": conv.contact.status_id,
+                "status": {
+                    "id": conv.contact.status.id,
+                    "name": conv.contact.status.name,
+                    "color": conv.contact.status.color
+                } if conv.contact.status else None,
             },
             "last_message": last_message.content if last_message else None
         })

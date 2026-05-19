@@ -5,6 +5,8 @@ from app.api import webhook, messages
 from app.database import engine
 from app.models import Base
 from app.api import webhook, messages, quick_replies
+from app.api import webhook, messages, quick_replies, statuses
+from app.api import webhook, messages, quick_replies, statuses, contacts
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +26,9 @@ app.add_middleware(
 app.include_router(webhook.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(quick_replies.router, prefix="/api")
+app.include_router(statuses.router, prefix="/api")
+app.include_router(contacts.router, prefix="/api")
+
 
 # Socket.io'yu FastAPI'ye bağla
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
