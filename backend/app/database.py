@@ -19,14 +19,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/crm_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Railway PostgreSQL URL düzeltmesi
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set!")
+
+# Railway eski postgres:// formatını düzelt
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
 
-# postgresql:// → postgresql+psycopg2:// dönüşümü
-if DATABASE_URL.startswith("postgresql://"):
+# postgresql:// → postgresql+psycopg2://
+elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine = create_engine(DATABASE_URL)
