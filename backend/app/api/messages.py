@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from app.database import get_db
 from app.models import Contact, Conversation, Message
 from app.config import INSTAGRAM_TOKEN
@@ -10,16 +11,31 @@ router = APIRouter()
 
 @router.get("/conversations")
 def get_conversations(db: Session = Depends(get_db)):
-    conversations = db.query(Conversation).join(Contact).order_by(
-        Conversation.last_message_at.desc()
-    ).all()
+    # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
+    conversations = db.query(Conversation).options(
+        joinedload(Conversation.contact).joinedload(Contact.status)
+    ).order_by(Conversation.last_message_at.desc()).all()
+
+    # Son mesajları tek sorguda çek (N+1 problemi çözümü)
+    conv_ids = [conv.id for conv in conversations]
+    last_messages = {}
+    
+    if conv_ids:
+        subq = db.query(
+            Message.conversation_id,
+            func.max(Message.id).label("max_id")
+        ).filter(
+            Message.conversation_id.in_(conv_ids)
+        ).group_by(Message.conversation_id).subquery()
+
+        msgs = db.query(Message).join(
+            subq, Message.id == subq.c.max_id
+        ).all()
+
+        last_messages = {m.conversation_id: m.content for m in msgs}
 
     result = []
     for conv in conversations:
-        last_message = db.query(Message).filter(
-            Message.conversation_id == conv.id
-        ).order_by(Message.timestamp.desc()).first()
-
         result.append({
             "id": conv.id,
             "platform": conv.platform,
@@ -38,7 +54,7 @@ def get_conversations(db: Session = Depends(get_db)):
                     "color": conv.contact.status.color
                 } if conv.contact.status else None,
             },
-            "last_message": last_message.content if last_message else None
+            "last_message": last_messages.get(conv.id)
         })
 
     return result
@@ -72,7 +88,6 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
 
     contact = db.query(Contact).filter(Contact.id == conversation.contact_id).first()
 
-    # Instagram'a mesaj gönder
     url = "https://graph.instagram.com/v19.0/me/messages"
     payload = {
         "recipient": {"id": contact.external_id},
