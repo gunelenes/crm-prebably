@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { io } from "socket.io-client";
+
+const API = "https://crm-prebably-production.up.railway.app/api";
+const SOCKET_URL = "https://crm-prebably-production.up.railway.app";
 
 // const API = "http://127.0.0.1:8000/api";
-const API = "https://crm-prebably-production.up.railway.app/api";
 // ── Yardımcı Fonksiyonlar ─────────────────────────────────────────
 const avatarUrl = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "?")}&background=random&color=fff&size=80`;
@@ -716,6 +719,16 @@ export default function App() {
       setActiveReminders(res.data);
     } catch (e) {}
   };
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { transports: ["websocket"] });
+    
+    socket.on("new_message", (data) => {
+      console.log("Yeni mesaj geldi:", data);
+      fetchConversations(); // Listeyi güncelle
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   useEffect(() => {
     fetchConversations();
