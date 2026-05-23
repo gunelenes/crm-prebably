@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
 import axios from "axios";
 
 const API = "https://crm-prebably-production.up.railway.app/api";
@@ -604,12 +605,15 @@ export default function App() {
   const [quickReplies, setQuickReplies] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [activeReminders, setActiveReminders] = useState([]);
-
-  const fetchConversations = async () => {
-    try {
-      const res = await axios.get(`${API}/conversations`);
-      setConversations(res.data);
-    } catch (err) { console.error(err); }
+  const fetchTimeoutRef = useRef(null);
+  const fetchConversations = () => {
+    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+    fetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API}/conversations`);
+        setConversations(res.data);
+      } catch (err) { console.error(err); }
+    }, 500);
   };
 
   const syncConversations = async () => {
