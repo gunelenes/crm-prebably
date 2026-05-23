@@ -24,7 +24,7 @@ class Contact(Base):
     knows_us              = Column(Boolean, default=False)
     previous_trainings    = Column(Text, nullable=True)
     source_video          = Column(String(200), nullable=True)
-    purchase_potential    = Column(Enum('düşük', 'orta', 'yüksek'), nullable=True)
+    purchase_potential = Column(Enum('düşük', 'orta', 'yüksek', name='purchase_potential_enum'), nullable=True)
     had_training          = Column(Boolean, default=False)
     purchased             = Column(Boolean, default=False)
     reason_not_purchased  = Column(Text, nullable=True)
