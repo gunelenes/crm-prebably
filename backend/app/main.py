@@ -19,13 +19,13 @@ app.include_router(contacts.router, prefix="/api")
 
 app.state.sio = sio
 
-# Önce socket_app oluştur
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# Sonra CORS ekle
 socket_app = CORSMiddleware(
     socket_app,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
