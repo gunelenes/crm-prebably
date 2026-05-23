@@ -25,6 +25,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/c
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# postgresql:// → postgresql+psycopg2:// dönüşümü
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
