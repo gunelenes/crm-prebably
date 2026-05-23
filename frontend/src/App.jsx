@@ -658,17 +658,17 @@ export default function App() {
   }, []);
 
   // Otomatik sync — 5 dakikada bir
-  useEffect(() => {
-    const doSync = async () => {
-      setSyncing(true);
-      try { await axios.post(`${API}/sync-conversations`); setLastSync(new Date()); } catch (e) {}
-      setSyncing(false);
-      fetchConversations();
-    };
-    doSync();
-    const interval = setInterval(doSync, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    useEffect(() => {
+      const doSync = async () => {
+        setSyncing(true);
+        try { await axios.post(`${API}/sync-conversations`); setLastSync(new Date()); } catch (e) {}
+        setSyncing(false);
+        fetchConversations();
+      };
+      // doSync(); ← BU SATIRI SİL
+      const interval = setInterval(doSync, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }, []);
 
   useEffect(() => {
     if (!selected) return;
