@@ -1,12 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { io } from "socket.io-client";
 
 const API = "https://crm-prebably-production.up.railway.app/api";
 const SOCKET_URL = "https://crm-prebably-production.up.railway.app";
 
-// const API = "http://127.0.0.1:8000/api";
-// ── Yardımcı Fonksiyonlar ─────────────────────────────────────────
 const avatarUrl = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "?")}&background=random&color=fff&size=80`;
 
@@ -26,7 +23,6 @@ const formatTime = (dateStr) => {
   return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
-// ── Reminder Modal ────────────────────────────────────────────────
 function ReminderModal({ contactId, onClose, onSave }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -35,9 +31,7 @@ function ReminderModal({ contactId, onClose, onSave }) {
 
   const save = async () => {
     if (!title.trim() || !remindAt) return;
-    await axios.post(`${API}/contacts/${contactId}/reminders`, {
-      title, description, remind_at: remindAt, advisor
-    });
+    await axios.post(`${API}/contacts/${contactId}/reminders`, { title, description, remind_at: remindAt, advisor });
     onSave();
     onClose();
   };
@@ -46,55 +40,36 @@ function ReminderModal({ contactId, onClose, onSave }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
         <h3 className="font-bold text-gray-800 text-lg mb-4">🔔 Hatırlatma Oluştur</h3>
-        <input value={title} onChange={e => setTitle(e.target.value)}
-          placeholder="Başlık (örn. Ara, Takip et...)"
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Başlık"
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400" />
-        <textarea value={description} onChange={e => setDescription(e.target.value)}
-          placeholder="Not..." rows={2}
+        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Not..." rows={2}
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-3 resize-none focus:outline-none focus:border-blue-400" />
         <input type="datetime-local" value={remindAt} onChange={e => setRemindAt(e.target.value)}
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-3 focus:outline-none focus:border-blue-400" />
-        <input value={advisor} onChange={e => setAdvisor(e.target.value)}
-          placeholder="Danışman adı"
+        <input value={advisor} onChange={e => setAdvisor(e.target.value)} placeholder="Danışman adı"
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-4 focus:outline-none focus:border-blue-400" />
         <div className="flex gap-2">
           <button onClick={save} disabled={!title.trim() || !remindAt}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl py-2 text-sm font-medium">
-            Kaydet
-          </button>
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl py-2 text-sm font-medium">Kaydet</button>
           <button onClick={onClose}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">
-            İptal
-          </button>
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">İptal</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Statü Değişim Modal ───────────────────────────────────────────
 function StatusModal({ contact, statuses, onClose, onSave }) {
   const [selectedStatus, setSelectedStatus] = useState(contact?.status_id || "");
   const [note, setNote] = useState("");
   const [advisor, setAdvisor] = useState("");
 
   const save = async () => {
-      console.log("Contact:", contact);
-      console.log("Contact ID:", contact?.id);
-      console.log("Selected Status:", selectedStatus);
-      
-      if (!contact?.id) {
-        alert("Contact ID bulunamadı: " + JSON.stringify(contact));
-        return;
-      }
-      
-      await axios.put(`${API}/contacts/${contact.id}/status`, {
-        status_id: selectedStatus || null,
-        note, advisor
-      });
-      onSave();
-      onClose();
-    };
+    if (!contact?.id) return;
+    await axios.put(`${API}/contacts/${contact.id}/status`, { status_id: selectedStatus || null, note, advisor });
+    onSave();
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -109,28 +84,21 @@ function StatusModal({ contact, statuses, onClose, onSave }) {
             </button>
           ))}
         </div>
-        <textarea value={note} onChange={e => setNote(e.target.value)}
-          placeholder="Açıklama (zorunlu değil)..." rows={2}
+        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Açıklama..." rows={2}
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-3 resize-none focus:outline-none focus:border-blue-400" />
-        <input value={advisor} onChange={e => setAdvisor(e.target.value)}
-          placeholder="Danışman adı"
+        <input value={advisor} onChange={e => setAdvisor(e.target.value)} placeholder="Danışman adı"
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-4 focus:outline-none focus:border-blue-400" />
         <div className="flex gap-2">
           <button onClick={save}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2 text-sm font-medium">
-            Kaydet
-          </button>
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2 text-sm font-medium">Kaydet</button>
           <button onClick={onClose}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">
-            İptal
-          </button>
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">İptal</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Sağ Panel — Kullanıcı Profili ────────────────────────────────
 function ContactPanel({ contact, statuses, onUpdate }) {
   const [profile, setProfile] = useState(null);
   const [activity, setActivity] = useState([]);
@@ -186,7 +154,6 @@ function ContactPanel({ contact, statuses, onUpdate }) {
 
   return (
     <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
-      {/* Üst — Avatar ve statü */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-3 mb-3">
           <img src={avatarUrl(contact.name)} className="w-12 h-12 rounded-full" />
@@ -202,13 +169,12 @@ function ContactPanel({ contact, statuses, onUpdate }) {
             {contact.status ? `🏷️ ${contact.status.name}` : "Statü Ata"}
           </button>
           <button onClick={() => setShowReminder(true)}
-            className="flex-1 text-xs py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-orange-500 border-orange-200">
+            className="flex-1 text-xs py-1.5 rounded-lg border border-orange-200 hover:bg-gray-50 transition-colors text-orange-500">
             🔔 Hatırlatma
           </button>
         </div>
       </div>
 
-      {/* Sekmeler */}
       <div className="flex border-b border-gray-200">
         {[["profile", "Profil"], ["activity", "Aktivite"], ["reminders", "Hatırlatmalar"]].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id)}
@@ -218,10 +184,7 @@ function ContactPanel({ contact, statuses, onUpdate }) {
         ))}
       </div>
 
-      {/* İçerik */}
       <div className="flex-1 overflow-y-auto p-4">
-
-        {/* Profil */}
         {activeTab === "profile" && profile && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -231,59 +194,36 @@ function ContactPanel({ contact, statuses, onUpdate }) {
                 {editing ? "Kaydet" : "Düzenle"}
               </button>
             </div>
-
             {[
-              { key: "full_name", label: "Ad Soyad", type: "text" },
-              { key: "phone", label: "Telefon", type: "text" },
-              { key: "sector", label: "Sektör", type: "text" },
-              { key: "source_video", label: "Hangi Videodan", type: "text" },
-              { key: "assigned_to", label: "Sorumlu Danışman", type: "text" },
-            ].map(({ key, label, type }) => (
+              { key: "full_name", label: "Ad Soyad" },
+              { key: "phone", label: "Telefon" },
+              { key: "sector", label: "Sektör" },
+              { key: "source_video", label: "Hangi Videodan" },
+              { key: "assigned_to", label: "Sorumlu Danışman" },
+            ].map(({ key, label }) => (
               <div key={key}>
                 <label className="text-xs text-gray-400 mb-1 block">{label}</label>
                 {editing ? (
-                  <input type={type} value={form[key] || ""} onChange={e => setForm({ ...form, [key]: e.target.value })}
+                  <input value={form[key] || ""} onChange={e => setForm({ ...form, [key]: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
                 ) : (
                   <div className="text-sm text-gray-700">{profile[key] || <span className="text-gray-400">—</span>}</div>
                 )}
               </div>
             ))}
-
-            {/* Açıklama */}
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">Açıklama</label>
-              {editing ? (
-                <textarea value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })}
-                  rows={3} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:border-blue-400" />
-              ) : (
-                <div className="text-sm text-gray-700">{profile.description || <span className="text-gray-400">—</span>}</div>
-              )}
-            </div>
-
-            {/* Eğitimler */}
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">Daha Önce Aldığı Eğitimler</label>
-              {editing ? (
-                <textarea value={form.previous_trainings || ""} onChange={e => setForm({ ...form, previous_trainings: e.target.value })}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:border-blue-400" />
-              ) : (
-                <div className="text-sm text-gray-700">{profile.previous_trainings || <span className="text-gray-400">—</span>}</div>
-              )}
-            </div>
-
-            {/* Neden Almadı */}
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">Neden Almadı</label>
-              {editing ? (
-                <textarea value={form.reason_not_purchased || ""} onChange={e => setForm({ ...form, reason_not_purchased: e.target.value })}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:border-blue-400" />
-              ) : (
-                <div className="text-sm text-gray-700">{profile.reason_not_purchased || <span className="text-gray-400">—</span>}</div>
-              )}
-            </div>
-
-            {/* Satın alma potansiyeli */}
+            {["description", "previous_trainings", "reason_not_purchased"].map((key) => (
+              <div key={key}>
+                <label className="text-xs text-gray-400 mb-1 block">
+                  {key === "description" ? "Açıklama" : key === "previous_trainings" ? "Daha Önce Aldığı Eğitimler" : "Neden Almadı"}
+                </label>
+                {editing ? (
+                  <textarea value={form[key] || ""} onChange={e => setForm({ ...form, [key]: e.target.value })}
+                    rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:border-blue-400" />
+                ) : (
+                  <div className="text-sm text-gray-700">{profile[key] || <span className="text-gray-400">—</span>}</div>
+                )}
+              </div>
+            ))}
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Satın Alma Potansiyeli</label>
               {editing ? (
@@ -298,8 +238,6 @@ function ContactPanel({ contact, statuses, onUpdate }) {
                 <div className="text-sm text-gray-700">{profile.purchase_potential || <span className="text-gray-400">—</span>}</div>
               )}
             </div>
-
-            {/* Toggle'lar */}
             <div className="space-y-2 pt-2 border-t border-gray-100">
               {[
                 { key: "knows_us", label: "Bizi Tanıyor mu?" },
@@ -321,17 +259,13 @@ function ContactPanel({ contact, statuses, onUpdate }) {
                 </div>
               ))}
             </div>
-
             {editing && (
               <button onClick={() => setEditing(false)}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">
-                İptal
-              </button>
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">İptal</button>
             )}
           </div>
         )}
 
-        {/* Aktivite */}
         {activeTab === "activity" && (
           <div className="space-y-3">
             {activity.length === 0 ? (
@@ -352,7 +286,6 @@ function ContactPanel({ contact, statuses, onUpdate }) {
           </div>
         )}
 
-        {/* Hatırlatmalar */}
         {activeTab === "reminders" && (
           <div className="space-y-3">
             <button onClick={() => setShowReminder(true)}
@@ -374,9 +307,7 @@ function ContactPanel({ contact, statuses, onUpdate }) {
                   </div>
                   {!r.is_done && (
                     <button onClick={() => markDone(r.id)}
-                      className="text-xs bg-green-500 text-white px-2 py-1 rounded-lg flex-shrink-0">
-                      ✓
-                    </button>
+                      className="text-xs bg-green-500 text-white px-2 py-1 rounded-lg flex-shrink-0">✓</button>
                   )}
                 </div>
               </div>
@@ -385,20 +316,13 @@ function ContactPanel({ contact, statuses, onUpdate }) {
         )}
       </div>
 
-      {/* Modaller */}
-      {showReminder && (
-        <ReminderModal contactId={contact.id} onClose={() => setShowReminder(false)} onSave={loadData} />
-      )}
-      {showStatus && (
-        <StatusModal contact={contact} statuses={statuses} onClose={() => setShowStatus(false)}
-          onSave={() => { loadData(); onUpdate(); }} />
-      )}
+      {showReminder && <ReminderModal contactId={contact.id} onClose={() => setShowReminder(false)} onSave={loadData} />}
+      {showStatus && <StatusModal contact={contact} statuses={statuses} onClose={() => setShowStatus(false)} onSave={() => { loadData(); onUpdate(); }} />}
     </div>
   );
 }
 
-// ── Mesajlar Sayfası ─────────────────────────────────────────────
-function MessagesPage({ conversations, selected, setSelected, messages, window24, replyText, setReplyText, sending, sendReply, handleKeyDown, quickReplies, syncing, syncConversations, lastSync, statuses, onContactUpdate }) {
+function MessagesPage({ conversations, selected, setSelected, messages, window24, replyText, setReplyText, sending, sendReply, handleKeyDown, quickReplies, syncing, syncConversations, statuses, onContactUpdate }) {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
 
@@ -413,8 +337,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
 
   return (
     <div className="flex flex-1 overflow-hidden flex-col">
-
-      {/* Üst — Statü filtreleri */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-2 overflow-x-auto">
         <button onClick={() => setActiveFilter(null)}
           className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${!activeFilter ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
@@ -430,7 +352,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sol panel */}
         <div className="w-72 bg-white border-r border-gray-200 flex flex-col">
           <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between">
             <p className="text-white text-sm font-medium">{filteredConversations.length} konuşma</p>
@@ -439,7 +360,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
               <span className={syncing ? "animate-spin inline-block" : ""}>🔄</span>
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto">
             {filteredConversations.map((conv) => (
               <div key={conv.id} onClick={() => setSelected(conv)}
@@ -470,7 +390,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
           </div>
         </div>
 
-        {/* Orta — Mesajlar */}
         <div className="flex-1 flex flex-col">
           {selected ? (
             <>
@@ -486,7 +405,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
                   </div>
                 )}
               </div>
-
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
@@ -497,7 +415,6 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
                   </div>
                 ))}
               </div>
-
               <div className="bg-white border-t border-gray-200 p-3">
                 {window24 && !window24.open ? (
                   <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
@@ -544,18 +461,12 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
           )}
         </div>
 
-        {/* Sağ panel — Kullanıcı profili */}
-        <ContactPanel
-          contact={selected?.contact}
-          statuses={statuses}
-          onUpdate={onContactUpdate}
-        />
+        <ContactPanel contact={selected?.contact} statuses={statuses} onUpdate={onContactUpdate} />
       </div>
     </div>
   );
 }
 
-// ── Hazır Mesajlar Sayfası ────────────────────────────────────────
 function QuickRepliesPage({ quickReplies, setQuickReplies }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -613,7 +524,6 @@ function QuickRepliesPage({ quickReplies, setQuickReplies }) {
   );
 }
 
-// ── Statüler Sayfası ──────────────────────────────────────────────
 function StatusesPage({ statuses, setStatuses }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#3B82F6");
@@ -680,7 +590,6 @@ function StatusesPage({ statuses, setStatuses }) {
   );
 }
 
-// ── Ana App ───────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("messages");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -719,27 +628,32 @@ export default function App() {
       setActiveReminders(res.data);
     } catch (e) {}
   };
-  useEffect(() => {
-    const socket = io(SOCKET_URL, { transports: ["websocket"] });
-    
-    socket.on("new_message", (data) => {
-      console.log("Yeni mesaj geldi:", data);
-      fetchConversations(); // Listeyi güncelle
-    });
 
+  // WebSocket — window.io CDN'den geliyor
+  useEffect(() => {
+    if (!window.io) return;
+    const socket = window.io(SOCKET_URL, { transports: ["websocket"] });
+    socket.on("connect", () => console.log("Socket bağlandı ✅"));
+    socket.on("new_message", (data) => {
+      console.log("Yeni mesaj:", data);
+      fetchConversations();
+    });
     return () => socket.disconnect();
   }, []);
 
+  // İlk yükleme
   useEffect(() => {
     fetchConversations();
     axios.get(`${API}/quick-replies`).then(r => setQuickReplies(r.data));
     axios.get(`${API}/statuses`).then(r => setStatuses(r.data));
     checkReminders();
-    const interval = setInterval(fetchConversations, 5000);
+    // Polling 30 saniyeye çıkarıldı — WebSocket zaten anlık güncelliyor
+    const interval = setInterval(fetchConversations, 30000);
     const reminderInterval = setInterval(checkReminders, 60000);
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
   }, []);
 
+  // Otomatik sync — 5 dakikada bir
   useEffect(() => {
     const doSync = async () => {
       setSyncing(true);
@@ -789,8 +703,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
-
-      {/* Aktif hatırlatma bildirimi */}
       {activeReminders.length > 0 && (
         <div className="fixed top-4 right-4 z-50 space-y-2">
           {activeReminders.map(r => (
@@ -809,7 +721,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Sidebar */}
       <div className={`${menuOpen ? "w-48" : "w-16"} bg-gray-900 flex flex-col transition-all duration-200`}>
         <button onClick={() => setMenuOpen(!menuOpen)}
           className="p-4 text-gray-400 hover:text-white transition-colors text-xl">
@@ -818,9 +729,7 @@ export default function App() {
         <nav className="flex-1 px-2 space-y-1">
           {menuItems.map((item) => (
             <button key={item.id} onClick={() => { setPage(item.id); setMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                page === item.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
-              }`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${page === item.id ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"}`}>
               <span className="text-lg flex-shrink-0">{item.icon}</span>
               {menuOpen && <span>{item.label}</span>}
             </button>
@@ -829,7 +738,6 @@ export default function App() {
         {menuOpen && <div className="p-4 text-gray-600 text-xs">CRM v1.0</div>}
       </div>
 
-      {/* İçerik */}
       {page === "messages" && (
         <MessagesPage
           conversations={conversations} selected={selected} setSelected={setSelected}
@@ -839,12 +747,8 @@ export default function App() {
           lastSync={lastSync} statuses={statuses} onContactUpdate={fetchConversations}
         />
       )}
-      {page === "quickreplies" && (
-        <QuickRepliesPage quickReplies={quickReplies} setQuickReplies={setQuickReplies} />
-      )}
-      {page === "statuses" && (
-        <StatusesPage statuses={statuses} setStatuses={setStatuses} />
-      )}
+      {page === "quickreplies" && <QuickRepliesPage quickReplies={quickReplies} setQuickReplies={setQuickReplies} />}
+      {page === "statuses" && <StatusesPage statuses={statuses} setStatuses={setStatuses} />}
     </div>
   );
 }
