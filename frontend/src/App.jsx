@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
-const API = "http://127.0.0.1:8000/api";
-
+// const API = "http://127.0.0.1:8000/api";
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 // ── Yardımcı Fonksiyonlar ─────────────────────────────────────────
 const avatarUrl = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "?")}&background=random&color=fff&size=80`;
