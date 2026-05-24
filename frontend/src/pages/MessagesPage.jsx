@@ -15,6 +15,8 @@ export default function MessagesPage() {
   const [syncing, setSyncing] = useState(false);
   const [quickReplies, setQuickReplies] = useState([]);
   const [statuses, setStatuses] = useState([]);
+  const [sectors, setSectors] = useState([]);
+  const [trainingSets, setTrainingSets] = useState([]);
   const [activeReminders, setActiveReminders] = useState([]);
   const [initialLoad, setInitialLoad] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -58,6 +60,8 @@ export default function MessagesPage() {
     fetchConversations();
     api.get("/quick-replies").then((r) => setQuickReplies(r.data));
     api.get("/statuses").then((r) => setStatuses(r.data));
+    api.get("/sectors").then((r) => setSectors(r.data));
+    api.get("/training-sets").then((r) => setTrainingSets(r.data));
     checkReminders();
     const interval = setInterval(fetchConversations, 10000);
     const reminderInterval = setInterval(checkReminders, 60000);
@@ -321,7 +325,7 @@ export default function MessagesPage() {
           )}
         </div>
 
-        <ContactPanel contact={selected?.contact} statuses={statuses} onUpdate={fetchConversations} />
+        <ContactPanel contact={selected?.contact} statuses={statuses} sectors={sectors} trainingSets={trainingSets} onUpdate={fetchConversations} />
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import api from "../api";
-import Spinner from "../components/Spinner";
+import api from "../../api";
+import Spinner from "../../components/Spinner";
 
-export default function StatusesPage() {
+export default function StatusesTab() {
   const [statuses, setStatuses] = useState([]);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#3B82F6");
@@ -41,8 +41,7 @@ export default function StatusesPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Statüler</h2>
+    <div>
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
         <div className="flex gap-3 mb-3">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Statü adı"

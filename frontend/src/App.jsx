@@ -4,7 +4,7 @@ import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
 import MessagesPage from "./pages/MessagesPage";
 import QuickRepliesPage from "./pages/QuickRepliesPage";
-import StatusesPage from "./pages/StatusesPage";
+import ParametersPage from "./pages/parameters/ParametersPage";
 import UsersPage from "./pages/UsersPage";
 
 export default function App() {
@@ -15,7 +15,8 @@ export default function App() {
         <Route index element={<Navigate to="/mesajlar" replace />} />
         <Route path="mesajlar" element={<MessagesPage />} />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
-        <Route path="statuler" element={<StatusesPage />} />
+        <Route path="parametreler" element={<ParametersPage />} />
+        <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
         <Route path="kullanicilar" element={
           <ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>
         } />

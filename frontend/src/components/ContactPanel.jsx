@@ -5,7 +5,7 @@ import Spinner from "./Spinner";
 import ReminderModal from "./ReminderModal";
 import StatusModal from "./StatusModal";
 
-export default function ContactPanel({ contact, statuses, onUpdate }) {
+export default function ContactPanel({ contact, statuses, sectors = [], trainingSets = [], onUpdate }) {
   const [profile, setProfile] = useState(null);
   const [activity, setActivity] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -114,8 +114,6 @@ export default function ContactPanel({ contact, statuses, onUpdate }) {
             {[
               { key: "full_name", label: "Ad Soyad" },
               { key: "phone", label: "Telefon" },
-              { key: "sector", label: "Sektör" },
-              { key: "source_video", label: "Hangi Videodan" },
               { key: "assigned_to", label: "Sorumlu Danışman" },
             ].map(({ key, label }) => (
               <div key={key}>
@@ -128,6 +126,34 @@ export default function ContactPanel({ contact, statuses, onUpdate }) {
                 )}
               </div>
             ))}
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Sektör</label>
+              {editing ? (
+                <select value={form.sector_id || ""} onChange={(e) => setForm({ ...form, sector_id: e.target.value ? Number(e.target.value) : null })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400">
+                  <option value="">{sectors.length === 0 ? "Önce parametreler ekranından tanımla" : "Seç"}</option>
+                  {sectors.filter((s) => s.is_active || s.id === form.sector_id).map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-gray-700">{profile.sector?.name || <span className="text-gray-400">—</span>}</div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Hangi Videodan / Eğitim Seti</label>
+              {editing ? (
+                <select value={form.training_set_id || ""} onChange={(e) => setForm({ ...form, training_set_id: e.target.value ? Number(e.target.value) : null })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400">
+                  <option value="">{trainingSets.length === 0 ? "Önce parametreler ekranından tanımla" : "Seç"}</option>
+                  {trainingSets.filter((t) => t.is_active || t.id === form.training_set_id).map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-gray-700">{profile.training_set?.name || <span className="text-gray-400">—</span>}</div>
+              )}
+            </div>
             {["description", "previous_trainings", "reason_not_purchased"].map((key) => (
               <div key={key}>
                 <label className="text-xs text-gray-400 mb-1 block">

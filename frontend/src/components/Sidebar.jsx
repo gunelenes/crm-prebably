@@ -5,7 +5,7 @@ import { useAuth } from "../AuthContext";
 const menuItems = [
   { to: "/mesajlar", icon: "💬", label: "Mesajlar" },
   { to: "/hazir-mesajlar", icon: "⚡", label: "Hazır Mesajlar" },
-  { to: "/statuler", icon: "🏷️", label: "Statüler" },
+  { to: "/parametreler", icon: "⚙️", label: "Parametreler" },
   { to: "/kullanicilar", icon: "👥", label: "Kullanıcılar", adminOnly: true },
 ];
 

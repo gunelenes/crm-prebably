@@ -23,6 +23,26 @@ class Status(Base):
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
+class Sector(Base):
+    __tablename__ = "sectors"
+    id                  = Column(Integer, primary_key=True, index=True)
+    name                = Column(String(100), nullable=False)
+    description         = Column(Text, nullable=True)
+    is_active           = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
+class TrainingSet(Base):
+    __tablename__ = "training_sets"
+    id                  = Column(Integer, primary_key=True, index=True)
+    name                = Column(String(100), nullable=False)
+    description         = Column(Text, nullable=True)
+    is_active           = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
 class Contact(Base):
     __tablename__ = "contacts"
     id                    = Column(Integer, primary_key=True, index=True)
@@ -31,20 +51,22 @@ class Contact(Base):
     name                  = Column(String(100))
     full_name             = Column(String(100), nullable=True)
     phone                 = Column(String(20), nullable=True)
-    sector                = Column(String(100), nullable=True)
     description           = Column(Text, nullable=True)
     knows_us              = Column(Boolean, default=False)
     previous_trainings    = Column(Text, nullable=True)
-    source_video          = Column(String(200), nullable=True)
     purchase_potential = Column(Enum('düşük', 'orta', 'yüksek', name='purchase_potential_enum'), nullable=True)
     had_training          = Column(Boolean, default=False)
     purchased             = Column(Boolean, default=False)
     reason_not_purchased  = Column(Text, nullable=True)
     assigned_to           = Column(String(100), nullable=True)
     status_id             = Column(Integer, ForeignKey("statuses.id"), nullable=True)
+    sector_id             = Column(Integer, ForeignKey("sectors.id"), nullable=True)
+    training_set_id       = Column(Integer, ForeignKey("training_sets.id"), nullable=True)
     created_at            = Column(DateTime, default=datetime.utcnow)
     created_by_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
     status                = relationship("Status")
+    sector                = relationship("Sector", foreign_keys=[sector_id])
+    training_set          = relationship("TrainingSet", foreign_keys=[training_set_id])
     created_by            = relationship("User", foreign_keys=[created_by_user_id])
     conversations         = relationship("Conversation", back_populates="contact")
     activity_logs         = relationship("ActivityLog", back_populates="contact")

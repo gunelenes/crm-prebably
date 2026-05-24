@@ -95,7 +95,12 @@ def mark_reminder_done(contact_id: int, reminder_id: int, _: User = Depends(get_
 
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    contact = (db.query(Contact)
+               .options(joinedload(Contact.status),
+                        joinedload(Contact.sector),
+                        joinedload(Contact.training_set))
+               .filter(Contact.id == contact_id)
+               .first())
     if not contact:
         return {"error": "Bulunamadı"}
     return {
@@ -105,11 +110,9 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "phone": contact.phone,
         "platform": contact.platform,
         "external_id": contact.external_id,
-        "sector": contact.sector,
         "description": contact.description,
         "knows_us": contact.knows_us,
         "previous_trainings": contact.previous_trainings,
-        "source_video": contact.source_video,
         "purchase_potential": contact.purchase_potential,
         "had_training": contact.had_training,
         "purchased": contact.purchased,
@@ -117,6 +120,10 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "assigned_to": contact.assigned_to,
         "status_id": contact.status_id,
         "status": {"id": contact.status.id, "name": contact.status.name, "color": contact.status.color} if contact.status else None,
+        "sector_id": contact.sector_id,
+        "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
+        "training_set_id": contact.training_set_id,
+        "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
         "created_at": iso_utc(contact.created_at),
     }
 
@@ -125,12 +132,17 @@ def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(ge
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
-    fields = ["full_name", "phone", "sector", "description", "knows_us",
-              "previous_trainings", "source_video", "purchase_potential",
-              "had_training", "purchased", "reason_not_purchased", "assigned_to"]
+    fields = ["full_name", "phone", "description", "knows_us",
+              "previous_trainings", "purchase_potential",
+              "had_training", "purchased", "reason_not_purchased", "assigned_to",
+              "sector_id", "training_set_id"]
     for field in fields:
         if field in body:
-            setattr(contact, field, body[field])
+            value = body[field]
+            # Boş string FK için NULL'a çevir
+            if field in ("sector_id", "training_set_id") and (value == "" or value == 0):
+                value = None
+            setattr(contact, field, value)
     db.commit()
     return {"status": "ok"}
 
