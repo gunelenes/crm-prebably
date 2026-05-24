@@ -9,3 +9,7 @@ INSTAGRAM_TOKEN = os.getenv("INSTAGRAM_TOKEN")
 WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN")
 # DATABASE_URL = os.getenv("DATABASE_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/crm_db")
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = 7

@@ -1,24 +1,29 @@
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import QuickReply
+from app.models import QuickReply, User
+from app.auth import get_current_user
 
 router = APIRouter()
 
 @router.get("/quick-replies")
-def get_quick_replies(db: Session = Depends(get_db)):
+def get_quick_replies(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     replies = db.query(QuickReply).order_by(QuickReply.id.asc()).all()
     return [{"id": r.id, "title": r.title, "content": r.content} for r in replies]
 
 @router.post("/quick-replies")
-def create_quick_reply(body: dict = Body(...), db: Session = Depends(get_db)):
-    reply = QuickReply(title=body.get("title"), content=body.get("content"))
+def create_quick_reply(body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reply = QuickReply(
+        title=body.get("title"),
+        content=body.get("content"),
+        created_by_user_id=current_user.id,
+    )
     db.add(reply)
     db.commit()
     return {"status": "ok", "id": reply.id}
 
 @router.put("/quick-replies/{reply_id}")
-def update_quick_reply(reply_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
+def update_quick_reply(reply_id: int, body: dict = Body(...), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     reply = db.query(QuickReply).filter(QuickReply.id == reply_id).first()
     if not reply:
         return {"error": "Bulunamadı"}
@@ -28,7 +33,7 @@ def update_quick_reply(reply_id: int, body: dict = Body(...), db: Session = Depe
     return {"status": "ok"}
 
 @router.delete("/quick-replies/{reply_id}")
-def delete_quick_reply(reply_id: int, db: Session = Depends(get_db)):
+def delete_quick_reply(reply_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     reply = db.query(QuickReply).filter(QuickReply.id == reply_id).first()
     if not reply:
         return {"error": "Bulunamadı"}

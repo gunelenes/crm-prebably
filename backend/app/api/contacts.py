@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, Body
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import Contact, ActivityLog, Reminder, Status
+from app.models import Contact, ActivityLog, Reminder, Status, User
+from app.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter()
 
 @router.get("/contacts/search")
-def search_contacts(q: str = "", status_id: int = None, db: Session = Depends(get_db)):
+def search_contacts(q: str = "", status_id: int = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     query = db.query(Contact)
     if q:
         query = query.filter(
@@ -28,7 +29,7 @@ def search_contacts(q: str = "", status_id: int = None, db: Session = Depends(ge
     } for c in contacts]
 
 @router.get("/reminders/active")
-def get_active_reminders(db: Session = Depends(get_db)):
+def get_active_reminders(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     now = datetime.utcnow()
     reminders = db.query(Reminder).filter(
         Reminder.is_done == False,
@@ -43,9 +44,9 @@ def get_active_reminders(db: Session = Depends(get_db)):
     } for r in reminders]
 
 @router.put("/contacts/{contact_id}/status")
-def update_contact_status(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
+def update_contact_status(contact_id: int, body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        print(f"Status güncelleme: contact_id={contact_id}, body={body}")
+        print(f"Status güncelleme: contact_id={contact_id}, body={body}, user={current_user.id}")
 
         contact = db.query(Contact).filter(Contact.id == contact_id).first()
         if not contact:
@@ -53,7 +54,7 @@ def update_contact_status(contact_id: int, body: dict = Body(...), db: Session =
 
         old_status_id = contact.status_id
         new_status_id = body.get("status_id")
-        advisor = body.get("advisor", "")
+        advisor = body.get("advisor", "") or (current_user.full_name or current_user.username)
         note = body.get("note", "")
 
         contact.status_id = new_status_id
@@ -69,7 +70,8 @@ def update_contact_status(contact_id: int, body: dict = Body(...), db: Session =
             old_status_id=old_status_id,
             new_status_id=new_status_id,
             advisor=advisor,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            created_by_user_id=current_user.id,
         )
         db.add(log)
         db.commit()
@@ -82,7 +84,7 @@ def update_contact_status(contact_id: int, body: dict = Body(...), db: Session =
         return {"error": str(e)}
 
 @router.put("/contacts/{contact_id}/reminders/{reminder_id}/done")
-def mark_reminder_done(contact_id: int, reminder_id: int, db: Session = Depends(get_db)):
+def mark_reminder_done(contact_id: int, reminder_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
     if not reminder:
         return {"error": "Bulunamadı"}
@@ -91,7 +93,7 @@ def mark_reminder_done(contact_id: int, reminder_id: int, db: Session = Depends(
     return {"status": "ok"}
 
 @router.get("/contacts/{contact_id}")
-def get_contact(contact_id: int, db: Session = Depends(get_db)):
+def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
@@ -118,7 +120,7 @@ def get_contact(contact_id: int, db: Session = Depends(get_db)):
     }
 
 @router.put("/contacts/{contact_id}")
-def update_contact(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
+def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
@@ -132,24 +134,29 @@ def update_contact(contact_id: int, body: dict = Body(...), db: Session = Depend
     return {"status": "ok"}
 
 @router.get("/contacts/{contact_id}/activity")
-def get_activity(contact_id: int, db: Session = Depends(get_db)):
-    logs = db.query(ActivityLog).filter(
-        ActivityLog.contact_id == contact_id
-    ).order_by(ActivityLog.created_at.desc()).all()
+def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    logs = (db.query(ActivityLog)
+            .options(joinedload(ActivityLog.created_by))
+            .filter(ActivityLog.contact_id == contact_id)
+            .order_by(ActivityLog.created_at.desc())
+            .all())
     return [{
         "id": l.id,
         "type": l.type,
         "title": l.title,
         "description": l.description,
         "advisor": l.advisor,
-        "created_at": str(l.created_at)
+        "created_at": str(l.created_at),
+        "created_by": {"id": l.created_by.id, "full_name": l.created_by.full_name, "username": l.created_by.username} if l.created_by else None,
     } for l in logs]
 
 @router.get("/contacts/{contact_id}/reminders")
-def get_reminders(contact_id: int, db: Session = Depends(get_db)):
-    reminders = db.query(Reminder).filter(
-        Reminder.contact_id == contact_id
-    ).order_by(Reminder.remind_at.asc()).all()
+def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reminders = (db.query(Reminder)
+                 .options(joinedload(Reminder.created_by))
+                 .filter(Reminder.contact_id == contact_id)
+                 .order_by(Reminder.remind_at.asc())
+                 .all())
     return [{
         "id": r.id,
         "title": r.title,
@@ -157,17 +164,20 @@ def get_reminders(contact_id: int, db: Session = Depends(get_db)):
         "remind_at": str(r.remind_at),
         "is_done": r.is_done,
         "advisor": r.advisor,
-        "created_at": str(r.created_at)
+        "created_at": str(r.created_at),
+        "created_by": {"id": r.created_by.id, "full_name": r.created_by.full_name, "username": r.created_by.username} if r.created_by else None,
     } for r in reminders]
 
 @router.post("/contacts/{contact_id}/reminders")
-def create_reminder(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
+def create_reminder(contact_id: int, body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    advisor = body.get("advisor") or (current_user.full_name or current_user.username)
     reminder = Reminder(
         contact_id=contact_id,
         title=body.get("title"),
         description=body.get("description"),
         remind_at=datetime.fromisoformat(body.get("remind_at")),
-        advisor=body.get("advisor"),
+        advisor=advisor,
+        created_by_user_id=current_user.id,
     )
     db.add(reminder)
     log = ActivityLog(
@@ -175,8 +185,9 @@ def create_reminder(contact_id: int, body: dict = Body(...), db: Session = Depen
         type="reminder",
         title=f"Hatırlatma oluşturuldu: {body.get('title')}",
         description=body.get("description"),
-        advisor=body.get("advisor"),
-        created_at=datetime.utcnow()
+        advisor=advisor,
+        created_at=datetime.utcnow(),
+        created_by_user_id=current_user.id,
     )
     db.add(log)
     db.commit()

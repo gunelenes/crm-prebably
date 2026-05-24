@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
-from app.models import Contact, Conversation, Message
+from app.models import Contact, Conversation, Message, User
+from app.auth import get_current_user
 from app.config import INSTAGRAM_TOKEN
 from datetime import datetime, timedelta
 
 router = APIRouter()
 
 @router.get("/conversations")
-def get_conversations(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+def get_conversations(limit: int = 50, offset: int = 0, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
     conversations = db.query(Conversation).options(
         joinedload(Conversation.contact).joinedload(Contact.status)
@@ -59,7 +60,7 @@ def get_conversations(limit: int = 50, offset: int = 0, db: Session = Depends(ge
     return result
 
 @router.get("/conversations/{conversation_id}/messages")
-def get_messages(conversation_id: int, db: Session = Depends(get_db)):
+def get_messages(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     messages = db.query(Message).filter(
         Message.conversation_id == conversation_id
     ).order_by(Message.timestamp.asc()).all()
@@ -74,7 +75,7 @@ def get_messages(conversation_id: int, db: Session = Depends(get_db)):
     } for m in messages]
 
 @router.post("/conversations/{conversation_id}/reply")
-async def reply_message(conversation_id: int, request: Request, db: Session = Depends(get_db)):
+async def reply_message(conversation_id: int, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     body = await request.json()
     text = body.get("text")
 
@@ -107,7 +108,8 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
             platform=conversation.platform,
             external_id=result.get("message_id"),
             is_read=True,
-            timestamp=now
+            timestamp=now,
+            created_by_user_id=current_user.id,
         )
         db.add(new_message)
         conversation.last_message_at = now
@@ -131,7 +133,7 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
 
 @router.get("/conversations/{conversation_id}/window")
-def check_window(conversation_id: int, db: Session = Depends(get_db)):
+def check_window(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     last_inbound = db.query(Message).filter(
         Message.conversation_id == conversation_id,
         Message.direction == "inbound"
