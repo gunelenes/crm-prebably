@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Contact, ActivityLog, Reminder, Status
@@ -7,7 +7,7 @@ from datetime import datetime
 router = APIRouter()
 
 @router.get("/contacts/search")
-async def search_contacts(q: str = "", status_id: int = None, db: Session = Depends(get_db)):
+def search_contacts(q: str = "", status_id: int = None, db: Session = Depends(get_db)):
     query = db.query(Contact)
     if q:
         query = query.filter(
@@ -43,9 +43,8 @@ def get_active_reminders(db: Session = Depends(get_db)):
     } for r in reminders]
 
 @router.put("/contacts/{contact_id}/status")
-async def update_contact_status(contact_id: int, request: Request, db: Session = Depends(get_db)):
+def update_contact_status(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
     try:
-        body = await request.json()
         print(f"Status güncelleme: contact_id={contact_id}, body={body}")
 
         contact = db.query(Contact).filter(Contact.id == contact_id).first()
@@ -119,8 +118,7 @@ def get_contact(contact_id: int, db: Session = Depends(get_db)):
     }
 
 @router.put("/contacts/{contact_id}")
-async def update_contact(contact_id: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+def update_contact(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
@@ -163,8 +161,7 @@ def get_reminders(contact_id: int, db: Session = Depends(get_db)):
     } for r in reminders]
 
 @router.post("/contacts/{contact_id}/reminders")
-async def create_reminder(contact_id: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+def create_reminder(contact_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
     reminder = Reminder(
         contact_id=contact_id,
         title=body.get("title"),

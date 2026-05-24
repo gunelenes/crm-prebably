@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import QuickReply
@@ -11,16 +11,14 @@ def get_quick_replies(db: Session = Depends(get_db)):
     return [{"id": r.id, "title": r.title, "content": r.content} for r in replies]
 
 @router.post("/quick-replies")
-async def create_quick_reply(request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+def create_quick_reply(body: dict = Body(...), db: Session = Depends(get_db)):
     reply = QuickReply(title=body.get("title"), content=body.get("content"))
     db.add(reply)
     db.commit()
     return {"status": "ok", "id": reply.id}
 
 @router.put("/quick-replies/{reply_id}")
-async def update_quick_reply(reply_id: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+def update_quick_reply(reply_id: int, body: dict = Body(...), db: Session = Depends(get_db)):
     reply = db.query(QuickReply).filter(QuickReply.id == reply_id).first()
     if not reply:
         return {"error": "Bulunamadı"}

@@ -5,16 +5,15 @@ from app.database import get_db
 from app.models import Contact, Conversation, Message
 from app.config import INSTAGRAM_TOKEN
 from datetime import datetime, timedelta
-import httpx
 
 router = APIRouter()
 
 @router.get("/conversations")
-def get_conversations(db: Session = Depends(get_db)):
+def get_conversations(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
     conversations = db.query(Conversation).options(
         joinedload(Conversation.contact).joinedload(Contact.status)
-    ).order_by(Conversation.last_message_at.desc()).all()
+    ).order_by(Conversation.last_message_at.desc()).limit(limit).offset(offset).all()
 
     # Son mesajları tek sorguda çek (N+1 problemi çözümü)
     conv_ids = [conv.id for conv in conversations]
@@ -95,10 +94,9 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
         "access_token": INSTAGRAM_TOKEN
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-        result = response.json()
-        print("Instagram yanıt:", result)
+    response = await request.app.state.http.post(url, json=payload)
+    result = response.json()
+    print("Instagram yanıt:", result)
 
     if "error" not in result:
         new_message = Message(
