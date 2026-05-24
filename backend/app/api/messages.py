@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import Contact, Conversation, Message, User
 from app.auth import get_current_user
 from app.config import INSTAGRAM_TOKEN
+from app.utils import iso_utc
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -40,7 +41,7 @@ def get_conversations(limit: int = 50, offset: int = 0, _: User = Depends(get_cu
             "id": conv.id,
             "platform": conv.platform,
             "unread_count": conv.unread_count,
-            "last_message_at": str(conv.last_message_at),
+            "last_message_at": iso_utc(conv.last_message_at),
             "contact": {
                 "id": conv.contact.id,
                 "name": conv.contact.name,
@@ -69,7 +70,7 @@ def get_messages(conversation_id: int, _: User = Depends(get_current_user), db: 
         "id": m.id,
         "content": m.content,
         "direction": m.direction,
-        "timestamp": str(m.timestamp),
+        "timestamp": iso_utc(m.timestamp),
         "is_read": m.is_read,
         "message_type": m.message_type
     } for m in messages]

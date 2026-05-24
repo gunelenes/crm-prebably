@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Contact, ActivityLog, Reminder, Status, User
 from app.auth import get_current_user
+from app.utils import iso_utc
 from datetime import datetime
 
 router = APIRouter()
@@ -39,7 +40,7 @@ def get_active_reminders(_: User = Depends(get_current_user), db: Session = Depe
         "id": r.id,
         "contact_id": r.contact_id,
         "title": r.title,
-        "remind_at": str(r.remind_at),
+        "remind_at": iso_utc(r.remind_at),
         "advisor": r.advisor
     } for r in reminders]
 
@@ -116,7 +117,7 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "assigned_to": contact.assigned_to,
         "status_id": contact.status_id,
         "status": {"id": contact.status.id, "name": contact.status.name, "color": contact.status.color} if contact.status else None,
-        "created_at": str(contact.created_at),
+        "created_at": iso_utc(contact.created_at),
     }
 
 @router.put("/contacts/{contact_id}")
@@ -146,7 +147,7 @@ def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Sessi
         "title": l.title,
         "description": l.description,
         "advisor": l.advisor,
-        "created_at": str(l.created_at),
+        "created_at": iso_utc(l.created_at),
         "created_by": {"id": l.created_by.id, "full_name": l.created_by.full_name, "username": l.created_by.username} if l.created_by else None,
     } for l in logs]
 
@@ -161,10 +162,10 @@ def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Sess
         "id": r.id,
         "title": r.title,
         "description": r.description,
-        "remind_at": str(r.remind_at),
+        "remind_at": iso_utc(r.remind_at),
         "is_done": r.is_done,
         "advisor": r.advisor,
-        "created_at": str(r.created_at),
+        "created_at": iso_utc(r.created_at),
         "created_by": {"id": r.created_by.id, "full_name": r.created_by.full_name, "username": r.created_by.username} if r.created_by else None,
     } for r in reminders]
 

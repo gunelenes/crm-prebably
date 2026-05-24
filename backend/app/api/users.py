@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth import hash_password, require_admin
 from app.database import get_db
 from app.models import User
+from app.utils import iso_utc
 
 router = APIRouter()
 
@@ -18,7 +19,7 @@ def list_users(_: User = Depends(require_admin), db: Session = Depends(get_db)):
             "full_name": u.full_name,
             "role": u.role,
             "is_active": u.is_active,
-            "created_at": str(u.created_at),
+            "created_at": iso_utc(u.created_at),
         }
         for u in users
     ]
