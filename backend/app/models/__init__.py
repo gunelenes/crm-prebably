@@ -1,5 +1,5 @@
 from app.database import Base
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Enum, Numeric, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -71,6 +71,7 @@ class Contact(Base):
     conversations         = relationship("Conversation", back_populates="contact")
     activity_logs         = relationship("ActivityLog", back_populates="contact")
     reminders             = relationship("Reminder", back_populates="contact")
+    payments              = relationship("Payment", back_populates="contact")
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -136,4 +137,36 @@ class QuickReply(Base):
     content             = Column(Text)
     created_at          = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+    id                  = Column(Integer, primary_key=True, index=True)
+    bank_name           = Column(String(100), nullable=False)
+    iban                = Column(String(50), nullable=False)
+    account_holder      = Column(String(150), nullable=True)
+    description         = Column(Text, nullable=True)
+    is_active           = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
+class Payment(Base):
+    __tablename__ = "payments"
+    id                  = Column(Integer, primary_key=True, index=True)
+    type                = Column(String(20), nullable=False)  # 'income' | 'expense'
+    contact_id          = Column(Integer, ForeignKey("contacts.id"), nullable=True)
+    bank_account_id     = Column(Integer, ForeignKey("bank_accounts.id"), nullable=True)
+    amount              = Column(Numeric(12, 2), nullable=False)
+    currency            = Column(String(3), default="TRY")
+    paid_at             = Column(DateTime, nullable=False)
+    description         = Column(Text, nullable=True)
+    document_filename   = Column(String(255), nullable=True)
+    document_mime       = Column(String(50), nullable=True)
+    document_size       = Column(Integer, nullable=True)
+    document_data       = Column(LargeBinary, nullable=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    contact             = relationship("Contact", back_populates="payments")
+    bank_account        = relationship("BankAccount")
     created_by          = relationship("User", foreign_keys=[created_by_user_id])

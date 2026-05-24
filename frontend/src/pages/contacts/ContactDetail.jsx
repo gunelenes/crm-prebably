@@ -8,10 +8,12 @@ import ContactProfileTab from "./ContactProfileTab";
 import ContactMessagesTab from "./ContactMessagesTab";
 import ContactActivityTab from "./ContactActivityTab";
 import ContactRemindersTab from "./ContactRemindersTab";
+import ContactPaymentsTab from "./ContactPaymentsTab";
 
 const TABS = [
   { id: "profile", label: "Profil" },
   { id: "messages", label: "Mesajlar" },
+  { id: "payments", label: "Ödemeler" },
   { id: "activity", label: "Aktivite" },
   { id: "reminders", label: "Hatırlatmalar" },
 ];
@@ -148,6 +150,12 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
             contactId={contactId}
             conversationId={contactStub?.last_conversation_id}
             onChanged={refresh}
+          />
+        )}
+        {activeTab === "payments" && (
+          <ContactPaymentsTab
+            contactId={contactId}
+            contactName={display.full_name || display.name}
           />
         )}
         {activeTab === "activity" && (

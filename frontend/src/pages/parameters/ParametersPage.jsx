@@ -2,11 +2,13 @@ import { useState } from "react";
 import StatusesTab from "./StatusesTab";
 import SectorsTab from "./SectorsTab";
 import TrainingSetsTab from "./TrainingSetsTab";
+import BankAccountsTab from "./BankAccountsTab";
 
 const TABS = [
   { id: "statuses", label: "Statüler", icon: "🏷️", Component: StatusesTab },
   { id: "sectors", label: "Sektörler", icon: "🏢", Component: SectorsTab },
   { id: "training_sets", label: "Eğitim Setleri", icon: "🎬", Component: TrainingSetsTab },
+  { id: "bank_accounts", label: "Banka Hesapları", icon: "🏦", Component: BankAccountsTab },
 ];
 
 export default function ParametersPage() {

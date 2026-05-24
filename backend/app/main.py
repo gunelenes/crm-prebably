@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.database import engine
 from app.models import Base
-from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api
+from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api, bank_accounts as bank_accounts_api, payments as payments_api
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 http_client: httpx.AsyncClient | None = None
@@ -50,6 +50,8 @@ app.include_router(quick_replies.router, prefix="/api")
 app.include_router(statuses.router, prefix="/api")
 app.include_router(sectors_api.router, prefix="/api")
 app.include_router(training_sets_api.router, prefix="/api")
+app.include_router(bank_accounts_api.router, prefix="/api")
+app.include_router(payments_api.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 
 app.state.sio = sio
