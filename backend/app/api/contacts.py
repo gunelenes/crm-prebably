@@ -1,7 +1,9 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, Body
+from sqlalchemy import func, desc, asc
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import Contact, ActivityLog, Reminder, Status, User
+from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User
 from app.auth import get_current_user
 from app.utils import iso_utc
 from datetime import datetime
@@ -9,25 +11,128 @@ from datetime import datetime
 router = APIRouter()
 
 @router.get("/contacts/search")
-def search_contacts(q: str = "", status_id: int = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    query = db.query(Contact)
+def search_contacts(
+    q: str = "",
+    status_id: Optional[int] = None,
+    sector_id: Optional[int] = None,
+    training_set_id: Optional[int] = None,
+    assigned_to: Optional[str] = None,
+    purchased: Optional[bool] = None,
+    purchase_potential: Optional[str] = None,
+    sort_by: str = "last_message_at",
+    sort_dir: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+
+    # contact id → en son conversation (last_message_at + conv id)
+    last_conv_subq = (
+        db.query(
+            Conversation.contact_id.label("contact_id"),
+            func.max(Conversation.last_message_at).label("last_msg_at"),
+            func.max(Conversation.id).label("conv_id"),
+        )
+        .group_by(Conversation.contact_id)
+        .subquery()
+    )
+
+    base_query = (
+        db.query(Contact, last_conv_subq.c.last_msg_at, last_conv_subq.c.conv_id)
+        .outerjoin(last_conv_subq, last_conv_subq.c.contact_id == Contact.id)
+        .options(
+            joinedload(Contact.status),
+            joinedload(Contact.sector),
+            joinedload(Contact.training_set),
+        )
+    )
+
     if q:
-        query = query.filter(
-            (Contact.name.ilike(f"%{q}%")) |
-            (Contact.full_name.ilike(f"%{q}%")) |
-            (Contact.phone.ilike(f"%{q}%"))
+        like = f"%{q}%"
+        base_query = base_query.filter(
+            (Contact.name.ilike(like)) |
+            (Contact.full_name.ilike(like)) |
+            (Contact.phone.ilike(like))
         )
     if status_id:
-        query = query.filter(Contact.status_id == status_id)
-    contacts = query.limit(20).all()
-    return [{
-        "id": c.id,
-        "name": c.name,
-        "full_name": c.full_name,
-        "phone": c.phone,
-        "platform": c.platform,
-        "status": {"id": c.status.id, "name": c.status.name, "color": c.status.color} if c.status else None,
-    } for c in contacts]
+        base_query = base_query.filter(Contact.status_id == status_id)
+    if sector_id:
+        base_query = base_query.filter(Contact.sector_id == sector_id)
+    if training_set_id:
+        base_query = base_query.filter(Contact.training_set_id == training_set_id)
+    if assigned_to:
+        base_query = base_query.filter(Contact.assigned_to.ilike(f"%{assigned_to}%"))
+    if purchased is not None:
+        base_query = base_query.filter(Contact.purchased == purchased)
+    if purchase_potential:
+        base_query = base_query.filter(Contact.purchase_potential == purchase_potential)
+
+    # Sıralama
+    direction = desc if sort_dir != "asc" else asc
+    if sort_by == "name":
+        base_query = base_query.order_by(direction(func.coalesce(Contact.full_name, Contact.name)))
+    elif sort_by == "created_at":
+        base_query = base_query.order_by(direction(Contact.created_at))
+    else:  # last_message_at — NULL'lar sona
+        if sort_dir == "asc":
+            base_query = base_query.order_by(last_conv_subq.c.last_msg_at.asc().nullslast())
+        else:
+            base_query = base_query.order_by(last_conv_subq.c.last_msg_at.desc().nullslast())
+
+    # Toplam sayım (filtre uygulanmış, sayfalama uygulanmamış)
+    total = base_query.with_entities(func.count(Contact.id)).order_by(None).scalar() or 0
+
+    rows = base_query.limit(limit).offset(offset).all()
+
+    # last_message_preview için batch fetch
+    conv_ids = [r[2] for r in rows if r[2] is not None]
+    last_msg_by_conv = {}
+    if conv_ids:
+        subq = (
+            db.query(
+                Message.conversation_id,
+                func.max(Message.id).label("max_id"),
+            )
+            .filter(Message.conversation_id.in_(conv_ids))
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+        msgs = (
+            db.query(Message)
+            .join(subq, Message.id == subq.c.max_id)
+            .all()
+        )
+        last_msg_by_conv = {m.conversation_id: m.content for m in msgs}
+
+    items = []
+    for contact, last_msg_at, conv_id in rows:
+        preview = last_msg_by_conv.get(conv_id)
+        if preview and len(preview) > 80:
+            preview = preview[:80] + "…"
+        items.append({
+            "id": contact.id,
+            "name": contact.name,
+            "full_name": contact.full_name,
+            "phone": contact.phone,
+            "platform": contact.platform,
+            "assigned_to": contact.assigned_to,
+            "purchase_potential": contact.purchase_potential,
+            "purchased": contact.purchased,
+            "had_training": contact.had_training,
+            "knows_us": contact.knows_us,
+            "status": {"id": contact.status.id, "name": contact.status.name, "color": contact.status.color} if contact.status else None,
+            "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
+            "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
+            "last_message_at": iso_utc(last_msg_at),
+            "last_message_preview": preview,
+            "last_conversation_id": conv_id,
+            "created_at": iso_utc(contact.created_at),
+        })
+
+    return {"total": int(total), "items": items}
 
 @router.get("/reminders/active")
 def get_active_reminders(_: User = Depends(get_current_user), db: Session = Depends(get_db)):

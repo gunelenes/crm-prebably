@@ -3,6 +3,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
 import MessagesPage from "./pages/MessagesPage";
+import ContactsPage from "./pages/contacts/ContactsPage";
 import QuickRepliesPage from "./pages/QuickRepliesPage";
 import ParametersPage from "./pages/parameters/ParametersPage";
 import UsersPage from "./pages/UsersPage";
@@ -14,6 +15,7 @@ export default function App() {
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/mesajlar" replace />} />
         <Route path="mesajlar" element={<MessagesPage />} />
+        <Route path="kisiler" element={<ContactsPage />} />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
         <Route path="parametreler" element={<ParametersPage />} />
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
