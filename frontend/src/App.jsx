@@ -744,7 +744,10 @@ export default function App() {
     socket.on("new_message", (data) => {
       fetchConversations();
       const s = selectedRef.current;
-      if (s?.contact?.external_id === data.sender_id) {
+      const isForSelected = data.conversation_id != null
+        ? s?.id === data.conversation_id
+        : s?.contact?.external_id === data.sender_id;
+      if (isForSelected) {
         axios.get(`${API}/conversations/${s.id}/messages`).then(r => setMessages(r.data));
         axios.get(`${API}/conversations/${s.id}/window`).then(r => setWindow24(r.data));
       }

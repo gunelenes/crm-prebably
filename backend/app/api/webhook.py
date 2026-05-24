@@ -94,7 +94,9 @@ async def save_message(db, sender_id, text, mid, platform):
         await sio.emit("new_message", {
             "platform": platform,
             "sender_id": sender_id,
+            "conversation_id": conversation.id,
             "text": text,
+            "direction": "inbound",
             "is_new": is_new
         })
     except:

@@ -112,6 +112,20 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
         db.add(new_message)
         conversation.last_message_at = now
         db.commit()
+
+        try:
+            from app.main import sio
+            await sio.emit("new_message", {
+                "platform": conversation.platform,
+                "sender_id": contact.external_id,
+                "conversation_id": conversation.id,
+                "text": text,
+                "direction": "outbound",
+                "is_new": False,
+            })
+        except Exception:
+            pass
+
         return {"status": "ok"}
 
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
