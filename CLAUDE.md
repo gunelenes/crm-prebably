@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The API base URL is **hardcoded** in `src/App.jsx` to the Railway production host (`const API = "https://crm-prebably-production.up.railway.app/api"`). To point at a local backend, edit that constant.
 
 ## Architecture
-
+## Architecture
 ### Backend (FastAPI + Socket.IO + SQLAlchemy)
 - `app/main.py` builds the ASGI stack in a specific order that must be preserved: `FastAPI` app → wrapped by `socketio.ASGIApp` → wrapped by `CORSMiddleware`. The final object is `socket_app` (the deploy target). The `socketio.AsyncServer` instance is stored on `app.state.sio` and also imported directly from `app.main` by webhook handlers to emit events — circular-import-safe because the emit happens lazily inside request handlers.
 - `Base.metadata.create_all(bind=engine)` runs at import time of `app/main.py`. There is no migrations framework (Alembic etc.); schema changes happen by editing models and relying on `create_all` — which does **not** alter existing tables. Schema changes to existing columns require manual SQL.
