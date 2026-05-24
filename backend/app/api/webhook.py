@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.config import WEBHOOK_VERIFY_TOKEN
 from app.models import Contact, Conversation, Message
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -340,11 +340,24 @@ def sync_conversations(request: Request, db: Session = Depends(get_db)):
                     Message.external_id == msg["id"]
                 ).first()
 
-                if existing:
-                    continue
-
                 sender = msg.get("from", {})
                 direction = "outbound" if sender.get("id") == "17841401244343060" else "inbound"
+
+                # external_id NULL olan eski satırlar için yedek eşleştirme (content + ±2dk pencere)
+                if not existing:
+                    existing = db.query(Message).filter(
+                        Message.conversation_id == conversation.id,
+                        Message.external_id.is_(None),
+                        Message.direction == direction,
+                        Message.content == msg.get("message", ""),
+                        Message.timestamp.between(msg_time - timedelta(minutes=2),
+                                                  msg_time + timedelta(minutes=2))
+                    ).first()
+                    if existing:
+                        existing.external_id = msg["id"]  # backfill, bir daha duplicate üretmesin
+
+                if existing:
+                    continue
 
                 new_msg = Message(
                     conversation_id=conversation.id,

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 
 import axios from "axios";
+import { io } from "socket.io-client";
 
 const API = "https://crm-prebably-production.up.railway.app/api";
+const SOCKET_URL = API.replace(/\/api$/, "");
 
 
 const avatarUrl = (name) =>
@@ -380,6 +382,17 @@ function ContactPanel({ contact, statuses, onUpdate }) {
 function MessagesPage({ conversations, selected, setSelected, messages, window24, replyText, setReplyText, sending, sendReply, handleKeyDown, quickReplies, syncing, syncConversations, statuses, onContactUpdate, initialLoad, messagesLoading }) {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (selected) messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!messagesLoading && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, messagesLoading]);
 
   const statusCounts = statuses.reduce((acc, s) => {
     acc[s.id] = conversations.filter(c => c.contact.status_id === s.id).length;
@@ -479,6 +492,7 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
                     </div>
                   </div>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
               <div className="bg-white border-t border-gray-200 p-3">
                 {window24 && !window24.open ? (
@@ -680,6 +694,8 @@ export default function App() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const fetchTimeoutRef = useRef(null);
+  const selectedRef = useRef(null);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
   const fetchConversations = () => {
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(async () => {
@@ -717,6 +733,23 @@ export default function App() {
     const interval = setInterval(fetchConversations, 10000); // 10 saniye
     const reminderInterval = setInterval(checkReminders, 60000);
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
+  }, []);
+
+  // Socket.IO — yeni inbound mesajları gerçek zamanlı al
+  useEffect(() => {
+    const socket = io(SOCKET_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
+    socket.on("new_message", (data) => {
+      fetchConversations();
+      const s = selectedRef.current;
+      if (s?.contact?.external_id === data.sender_id) {
+        axios.get(`${API}/conversations/${s.id}/messages`).then(r => setMessages(r.data));
+        axios.get(`${API}/conversations/${s.id}/window`).then(r => setWindow24(r.data));
+      }
+    });
+    return () => { socket.disconnect(); };
   }, []);
 
   // Otomatik sync — 5 dakikada bir

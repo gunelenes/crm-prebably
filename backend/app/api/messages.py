@@ -99,15 +99,18 @@ async def reply_message(conversation_id: int, request: Request, db: Session = De
     print("Instagram yanıt:", result)
 
     if "error" not in result:
+        now = datetime.utcnow()
         new_message = Message(
             conversation_id=conversation_id,
             direction="outbound",
             content=text,
             platform=conversation.platform,
+            external_id=result.get("message_id"),
             is_read=True,
-            timestamp=datetime.utcnow()
+            timestamp=now
         )
         db.add(new_message)
+        conversation.last_message_at = now
         db.commit()
         return {"status": "ok"}
 
