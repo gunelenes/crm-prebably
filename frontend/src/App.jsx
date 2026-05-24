@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
 const API = "https://crm-prebably-production.up.railway.app/api";
-const SOCKET_URL = "https://crm-prebably-production.up.railway.app";
+
 
 const avatarUrl = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "?")}&background=random&color=fff&size=80`;
@@ -633,26 +633,13 @@ export default function App() {
     } catch (e) {}
   };
 
-  // WebSocket — window.io CDN'den geliyor
-  useEffect(() => {
-    if (!window.io) return;
-    const socket = window.io(SOCKET_URL, { transports: ["websocket"] });
-    socket.on("connect", () => console.log("Socket bağlandı ✅"));
-    socket.on("new_message", (data) => {
-      console.log("Yeni mesaj:", data);
-      fetchConversations();
-    });
-    return () => socket.disconnect();
-  }, []);
 
-  // İlk yükleme
   useEffect(() => {
     fetchConversations();
     axios.get(`${API}/quick-replies`).then(r => setQuickReplies(r.data));
     axios.get(`${API}/statuses`).then(r => setStatuses(r.data));
     checkReminders();
-    // Polling 30 saniyeye çıkarıldı — WebSocket zaten anlık güncelliyor
-    const interval = setInterval(fetchConversations, 30000);
+    const interval = setInterval(fetchConversations, 10000); // 10 saniye
     const reminderInterval = setInterval(checkReminders, 60000);
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
   }, []);

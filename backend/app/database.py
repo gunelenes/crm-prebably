@@ -34,11 +34,11 @@ elif "psycopg2" in DATABASE_URL or "asyncpg" in DATABASE_URL:
 
 engine = create_engine(
     DATABASE_URL,
-    pool_size=20,        # 5'ten 20'ye çıkar
-    max_overflow=40,     # 10'dan 40'a çıkar
-    pool_timeout=60,     # 30'dan 60'a çıkar
-    pool_recycle=1800,   # Bağlantıları 30 dakikada bir yenile
-    pool_pre_ping=True,  # Bağlantı sağlığını kontrol et
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_pre_ping=True,
+    pool_recycle=300,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
