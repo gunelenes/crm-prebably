@@ -6,7 +6,7 @@ import ThemeToggle from "./ThemeToggle";
 const menuItems = [
   { to: "/mesajlar", icon: "💬", label: "Mesajlar" },
   { to: "/kisiler", icon: "👤", label: "Kişiler" },
-  { to: "/odemeler", icon: "💳", label: "Ödemeler" },
+  { to: "/odemeler", icon: "💳", label: "Ödemeler", adminOnly: true },
   { to: "/hazir-mesajlar", icon: "⚡", label: "Hazır Mesajlar" },
   { to: "/parametreler", icon: "⚙️", label: "Parametreler" },
   { to: "/kullanicilar", icon: "👥", label: "Kullanıcılar", adminOnly: true },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../AuthContext";
 import api from "../../api";
 import { avatarUrl, platformIcon } from "../../utils";
 import StatusModal from "../../components/StatusModal";
@@ -10,17 +11,24 @@ import ContactActivityTab from "./ContactActivityTab";
 import ContactRemindersTab from "./ContactRemindersTab";
 import ContactPaymentsTab from "./ContactPaymentsTab";
 
-const TABS = [
+const ALL_TABS = [
   { id: "profile", label: "Profil" },
   { id: "messages", label: "Mesajlar" },
-  { id: "payments", label: "Ödemeler" },
+  { id: "payments", label: "Ödemeler", adminOnly: true },
   { id: "activity", label: "Aktivite" },
   { id: "reminders", label: "Hatırlatmalar" },
 ];
 
 export default function ContactDetail({ contactStub, contactId, statuses, sectors, trainingSets, onChanged }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const TABS = ALL_TABS.filter((t) => !t.adminOnly || user?.role === "admin");
   const [activeTab, setActiveTab] = useState("profile");
+
+  useEffect(() => {
+    if (!TABS.find((t) => t.id === activeTab)) setActiveTab("profile");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
   const [profile, setProfile] = useState(null);
   const [activity, setActivity] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -152,7 +160,7 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
             onChanged={refresh}
           />
         )}
-        {activeTab === "payments" && (
+        {activeTab === "payments" && user?.role === "admin" && (
           <ContactPaymentsTab
             contactId={contactId}
             contactName={display.full_name || display.name}

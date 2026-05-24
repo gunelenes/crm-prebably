@@ -7,7 +7,7 @@ from sqlalchemy import func, desc, asc
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Payment, Contact, BankAccount, User
-from app.auth import get_current_user
+from app.auth import get_current_user, require_admin
 from app.utils import iso_utc
 
 router = APIRouter()
@@ -60,7 +60,7 @@ def list_payments(
     sort_dir: str = "desc",
     limit: int = 50,
     offset: int = 0,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     limit = max(1, min(int(limit), 200))
@@ -122,7 +122,7 @@ async def create_payment(
     currency: Optional[str] = Form("TRY"),
     description: Optional[str] = Form(None),
     document: Optional[UploadFile] = File(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     if type not in ("income", "expense"):
@@ -169,7 +169,7 @@ async def create_payment(
 def update_payment(
     payment_id: int,
     body: dict = Body(...),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     p = db.query(Payment).filter(Payment.id == payment_id).first()
@@ -214,7 +214,7 @@ def delete_payment(payment_id: int, _: User = Depends(get_current_user), db: Ses
 async def upload_document(
     payment_id: int,
     document: UploadFile = File(...),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     p = db.query(Payment).filter(Payment.id == payment_id).first()

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../../AuthContext";
 import StatusesTab from "./StatusesTab";
 import SectorsTab from "./SectorsTab";
 import TrainingSetsTab from "./TrainingSetsTab";
@@ -8,12 +9,23 @@ const TABS = [
   { id: "statuses", label: "Statüler", icon: "🏷️", Component: StatusesTab },
   { id: "sectors", label: "Sektörler", icon: "🏢", Component: SectorsTab },
   { id: "training_sets", label: "Eğitim Setleri", icon: "🎬", Component: TrainingSetsTab },
-  { id: "bank_accounts", label: "Banka Hesapları", icon: "🏦", Component: BankAccountsTab },
+  { id: "bank_accounts", label: "Banka Hesapları", icon: "🏦", Component: BankAccountsTab, adminOnly: true },
 ];
 
 export default function ParametersPage() {
-  const [active, setActive] = useState("statuses");
-  const ActiveComponent = TABS.find((t) => t.id === active).Component;
+  const { user } = useAuth();
+  const visibleTabs = TABS.filter((t) => !t.adminOnly || user?.role === "admin");
+
+  const [active, setActive] = useState(visibleTabs[0]?.id || "statuses");
+
+  // Eğer aktif tab gizli olduysa ilk görünüre düş
+  useEffect(() => {
+    if (!visibleTabs.find((t) => t.id === active)) {
+      setActive(visibleTabs[0]?.id);
+    }
+  }, [visibleTabs, active]);
+
+  const ActiveComponent = visibleTabs.find((t) => t.id === active)?.Component;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -24,7 +36,7 @@ export default function ParametersPage() {
         </div>
 
         <div className="rounded-2xl bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 shadow-sm p-1 mb-6 inline-flex gap-1">
-          {TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const isActive = active === t.id;
             return (
               <button key={t.id} onClick={() => setActive(t.id)}
@@ -38,7 +50,7 @@ export default function ParametersPage() {
           })}
         </div>
 
-        <ActiveComponent />
+        {ActiveComponent && <ActiveComponent />}
       </div>
     </div>
   );

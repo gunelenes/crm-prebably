@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import BankAccount, User
-from app.auth import get_current_user
+from app.auth import require_admin
 from app.utils import iso_utc
 
 router = APIRouter()
 
 
 @router.get("/bank-accounts")
-def list_bank_accounts(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_bank_accounts(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     items = db.query(BankAccount).order_by(BankAccount.bank_name.asc()).all()
     return [{
         "id": b.id,
@@ -23,7 +23,7 @@ def list_bank_accounts(_: User = Depends(get_current_user), db: Session = Depend
 
 
 @router.post("/bank-accounts")
-def create_bank_account(body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_bank_account(body: dict = Body(...), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
     bank_name = (body.get("bank_name") or "").strip()
     iban = (body.get("iban") or "").strip().replace(" ", "")
     if not bank_name or not iban:
@@ -42,7 +42,7 @@ def create_bank_account(body: dict = Body(...), current_user: User = Depends(get
 
 
 @router.put("/bank-accounts/{ba_id}")
-def update_bank_account(ba_id: int, body: dict = Body(...), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_bank_account(ba_id: int, body: dict = Body(...), _: User = Depends(require_admin), db: Session = Depends(get_db)):
     item = db.query(BankAccount).filter(BankAccount.id == ba_id).first()
     if not item:
         return {"error": "Bulunamadı"}
@@ -61,7 +61,7 @@ def update_bank_account(ba_id: int, body: dict = Body(...), _: User = Depends(ge
 
 
 @router.delete("/bank-accounts/{ba_id}")
-def delete_bank_account(ba_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_bank_account(ba_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     item = db.query(BankAccount).filter(BankAccount.id == ba_id).first()
     if not item:
         return {"error": "Bulunamadı"}

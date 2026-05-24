@@ -17,7 +17,9 @@ export default function App() {
         <Route index element={<Navigate to="/mesajlar" replace />} />
         <Route path="mesajlar" element={<MessagesPage />} />
         <Route path="kisiler" element={<ContactsPage />} />
-        <Route path="odemeler" element={<PaymentsPage />} />
+        <Route path="odemeler" element={
+          <ProtectedRoute adminOnly><PaymentsPage /></ProtectedRoute>
+        } />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
         <Route path="parametreler" element={<ParametersPage />} />
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
