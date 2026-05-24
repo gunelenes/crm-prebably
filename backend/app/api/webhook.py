@@ -258,7 +258,7 @@ async def test_conversations(request: Request):
 #     return {"status": "ok", "synced": synced}
 
 @router.post("/sync-conversations")
-async def sync_conversations(request: Request, db: Session = Depends(get_db)):
+def sync_conversations(request: Request, db: Session = Depends(get_db)):
     from app.config import INSTAGRAM_TOKEN
     from datetime import timezone
     import dateutil.parser
@@ -270,9 +270,9 @@ async def sync_conversations(request: Request, db: Session = Depends(get_db)):
     skipped = 0
     # page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages{{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}"
     page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages.limit(10){{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}&limit=20"
-    client = request.app.state.http
+    client = request.app.state.sync_http
     while page_url:
-        response = await client.get(page_url, timeout=60.0)
+        response = client.get(page_url, timeout=60.0)
         data = response.json()
 
         if "error" in data:

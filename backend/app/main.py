@@ -9,18 +9,22 @@ from app.api import webhook, messages, quick_replies, statuses, contacts
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 http_client: httpx.AsyncClient | None = None
+sync_http_client: httpx.Client | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global http_client
+    global http_client, sync_http_client
     Base.metadata.create_all(bind=engine)
     http_client = httpx.AsyncClient(timeout=30.0)
+    sync_http_client = httpx.Client(timeout=60.0)
     app.state.http = http_client
+    app.state.sync_http = sync_http_client
     try:
         yield
     finally:
         await http_client.aclose()
+        sync_http_client.close()
 
 
 app = FastAPI(title="CRM API", lifespan=lifespan)

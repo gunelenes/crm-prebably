@@ -10,6 +10,44 @@ const avatarUrl = (name) =>
 
 const platformIcon = (p) => p === "instagram" ? "📸" : p === "whatsapp" ? "💬" : "💌";
 
+const Spinner = ({ className = "" }) => (
+  <span className={`inline-block animate-spin border-2 border-current border-t-transparent rounded-full w-4 h-4 align-[-3px] ${className}`} />
+);
+
+const ConversationSkeleton = ({ count = 8 }) => (
+  <>
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="p-3 border-b border-gray-100">
+        <div className="flex items-start gap-2">
+          <div className="w-9 h-9 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+          <div className="flex-1 space-y-2 py-1">
+            <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-12" />
+          </div>
+        </div>
+      </div>
+    ))}
+  </>
+);
+
+const MessageSkeleton = ({ count = 5 }) => (
+  <>
+    {Array.from({ length: count }).map((_, i) => {
+      const isRight = i % 2 === 1;
+      const widthPct = 35 + ((i * 13) % 35);
+      return (
+        <div key={i} className={`flex ${isRight ? "justify-end" : "justify-start"}`}>
+          <div
+            className={`h-10 rounded-2xl animate-pulse ${isRight ? "bg-blue-200" : "bg-gray-200"}`}
+            style={{ width: `${widthPct}%` }}
+          />
+        </div>
+      );
+    })}
+  </>
+);
+
 const formatTime = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -29,12 +67,16 @@ function ReminderModal({ contactId, onClose, onSave }) {
   const [description, setDescription] = useState("");
   const [remindAt, setRemindAt] = useState("");
   const [advisor, setAdvisor] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!title.trim() || !remindAt) return;
-    await axios.post(`${API}/contacts/${contactId}/reminders`, { title, description, remind_at: remindAt, advisor });
-    onSave();
-    onClose();
+    setSaving(true);
+    try {
+      await axios.post(`${API}/contacts/${contactId}/reminders`, { title, description, remind_at: remindAt, advisor });
+      onSave();
+      onClose();
+    } finally { setSaving(false); }
   };
 
   return (
@@ -50,9 +92,11 @@ function ReminderModal({ contactId, onClose, onSave }) {
         <input value={advisor} onChange={e => setAdvisor(e.target.value)} placeholder="Danışman adı"
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-4 focus:outline-none focus:border-blue-400" />
         <div className="flex gap-2">
-          <button onClick={save} disabled={!title.trim() || !remindAt}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl py-2 text-sm font-medium">Kaydet</button>
-          <button onClick={onClose}
+          <button onClick={save} disabled={!title.trim() || !remindAt || saving}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl py-2 text-sm font-medium">
+            {saving ? <Spinner /> : "Kaydet"}
+          </button>
+          <button onClick={onClose} disabled={saving}
             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">İptal</button>
         </div>
       </div>
@@ -64,12 +108,16 @@ function StatusModal({ contact, statuses, onClose, onSave }) {
   const [selectedStatus, setSelectedStatus] = useState(contact?.status_id || "");
   const [note, setNote] = useState("");
   const [advisor, setAdvisor] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!contact?.id) return;
-    await axios.put(`${API}/contacts/${contact.id}/status`, { status_id: selectedStatus || null, note, advisor });
-    onSave();
-    onClose();
+    setSaving(true);
+    try {
+      await axios.put(`${API}/contacts/${contact.id}/status`, { status_id: selectedStatus || null, note, advisor });
+      onSave();
+      onClose();
+    } finally { setSaving(false); }
   };
 
   return (
@@ -90,9 +138,11 @@ function StatusModal({ contact, statuses, onClose, onSave }) {
         <input value={advisor} onChange={e => setAdvisor(e.target.value)} placeholder="Danışman adı"
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-4 focus:outline-none focus:border-blue-400" />
         <div className="flex gap-2">
-          <button onClick={save}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2 text-sm font-medium">Kaydet</button>
-          <button onClick={onClose}
+          <button onClick={save} disabled={saving}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl py-2 text-sm font-medium">
+            {saving ? <Spinner /> : "Kaydet"}
+          </button>
+          <button onClick={onClose} disabled={saving}
             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-2 text-sm font-medium">İptal</button>
         </div>
       </div>
@@ -109,6 +159,7 @@ function ContactPanel({ contact, statuses, onUpdate }) {
   const [showReminder, setShowReminder] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!contact) return;
@@ -128,10 +179,13 @@ function ContactPanel({ contact, statuses, onUpdate }) {
   };
 
   const save = async () => {
-    await axios.put(`${API}/contacts/${contact.id}`, form);
-    setEditing(false);
-    loadData();
-    onUpdate();
+    setSaving(true);
+    try {
+      await axios.put(`${API}/contacts/${contact.id}`, form);
+      setEditing(false);
+      await loadData();
+      onUpdate();
+    } finally { setSaving(false); }
   };
 
   const markDone = async (reminderId) => {
@@ -190,9 +244,9 @@ function ContactPanel({ contact, statuses, onUpdate }) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-gray-500">Profil Bilgileri</span>
-              <button onClick={() => editing ? save() : setEditing(true)}
-                className={`text-xs px-3 py-1 rounded-lg font-medium ${editing ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                {editing ? "Kaydet" : "Düzenle"}
+              <button onClick={() => editing ? save() : setEditing(true)} disabled={saving}
+                className={`text-xs px-3 py-1 rounded-lg font-medium ${editing ? "bg-blue-500 text-white disabled:bg-blue-300" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {saving ? <Spinner /> : (editing ? "Kaydet" : "Düzenle")}
               </button>
             </div>
             {[
@@ -323,7 +377,7 @@ function ContactPanel({ contact, statuses, onUpdate }) {
   );
 }
 
-function MessagesPage({ conversations, selected, setSelected, messages, window24, replyText, setReplyText, sending, sendReply, handleKeyDown, quickReplies, syncing, syncConversations, statuses, onContactUpdate }) {
+function MessagesPage({ conversations, selected, setSelected, messages, window24, replyText, setReplyText, sending, sendReply, handleKeyDown, quickReplies, syncing, syncConversations, statuses, onContactUpdate, initialLoad, messagesLoading }) {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
 
@@ -357,12 +411,18 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
           <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between">
             <p className="text-white text-sm font-medium">{filteredConversations.length} konuşma</p>
             <button onClick={syncConversations} disabled={syncing}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg px-2 py-1 text-xs">
+              title={syncing ? "Instagram'dan yeni mesajlar çekiliyor..." : "Senkronize et"}
+              className="bg-white bg-opacity-20 hover:bg-opacity-30 disabled:opacity-60 text-white rounded-lg px-2 py-1 text-xs">
               <span className={syncing ? "animate-spin inline-block" : ""}>🔄</span>
             </button>
           </div>
+          {syncing && (
+            <div className="h-0.5 bg-gradient-to-r from-blue-300 via-blue-600 to-blue-300 animate-pulse" />
+          )}
           <div className="flex-1 overflow-y-auto">
-            {filteredConversations.map((conv) => (
+            {initialLoad && filteredConversations.length === 0 ? (
+              <ConversationSkeleton count={8} />
+            ) : filteredConversations.map((conv) => (
               <div key={conv.id} onClick={() => setSelected(conv)}
                 className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-blue-50 transition-colors ${selected?.id === conv.id ? "bg-blue-50 border-l-4 border-l-blue-500" : ""}`}>
                 <div className="flex items-start gap-2">
@@ -407,11 +467,15 @@ function MessagesPage({ conversations, selected, setSelected, messages, window24
                 )}
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
+                {messagesLoading && messages.length === 0 ? (
+                  <MessageSkeleton count={5} />
+                ) : messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"} ${msg._pending ? "opacity-60" : ""}`}>
                     <div className={`max-w-sm px-4 py-2 rounded-2xl text-sm ${msg.direction === "outbound" ? "bg-blue-500 text-white rounded-br-sm" : "bg-white text-gray-800 shadow-sm rounded-bl-sm"}`}>
                       <div>{msg.content}</div>
-                      <div className={`text-xs mt-1 ${msg.direction === "outbound" ? "text-blue-200" : "text-gray-400"}`}>{formatTime(msg.timestamp)}</div>
+                      <div className={`text-xs mt-1 ${msg.direction === "outbound" ? "text-blue-200" : "text-gray-400"}`}>
+                        {msg._pending ? "⏳ Gönderiliyor..." : formatTime(msg.timestamp)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -472,17 +536,21 @@ function QuickRepliesPage({ quickReplies, setQuickReplies }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!title.trim() || !content.trim()) return;
-    if (editing) {
-      await axios.put(`${API}/quick-replies/${editing}`, { title, content });
-    } else {
-      await axios.post(`${API}/quick-replies`, { title, content });
-    }
-    const res = await axios.get(`${API}/quick-replies`);
-    setQuickReplies(res.data);
-    setTitle(""); setContent(""); setEditing(null);
+    setSaving(true);
+    try {
+      if (editing) {
+        await axios.put(`${API}/quick-replies/${editing}`, { title, content });
+      } else {
+        await axios.post(`${API}/quick-replies`, { title, content });
+      }
+      const res = await axios.get(`${API}/quick-replies`);
+      setQuickReplies(res.data);
+      setTitle(""); setContent(""); setEditing(null);
+    } finally { setSaving(false); }
   };
 
   return (
@@ -495,12 +563,12 @@ function QuickRepliesPage({ quickReplies, setQuickReplies }) {
         <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Mesaj içeriği..." rows={3}
           className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm mb-3 resize-none focus:outline-none focus:border-blue-400" />
         <div className="flex gap-2">
-          <button onClick={save} disabled={!title.trim() || !content.trim()}
-            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl px-5 py-2 text-sm font-medium">
-            {editing ? "Güncelle" : "Ekle"}
+          <button onClick={save} disabled={!title.trim() || !content.trim() || saving}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl px-5 py-2 text-sm font-medium min-w-[80px]">
+            {saving ? <Spinner /> : (editing ? "Güncelle" : "Ekle")}
           </button>
           {editing && (
-            <button onClick={() => { setEditing(null); setTitle(""); setContent(""); }}
+            <button onClick={() => { setEditing(null); setTitle(""); setContent(""); }} disabled={saving}
               className="bg-gray-100 text-gray-700 rounded-xl px-5 py-2 text-sm font-medium">İptal</button>
           )}
         </div>
@@ -529,17 +597,21 @@ function StatusesPage({ statuses, setStatuses }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#3B82F6");
   const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!name.trim()) return;
-    if (editing) {
-      await axios.put(`${API}/statuses/${editing}`, { name, color });
-    } else {
-      await axios.post(`${API}/statuses`, { name, color });
-    }
-    const res = await axios.get(`${API}/statuses`);
-    setStatuses(res.data);
-    setName(""); setColor("#3B82F6"); setEditing(null);
+    setSaving(true);
+    try {
+      if (editing) {
+        await axios.put(`${API}/statuses/${editing}`, { name, color });
+      } else {
+        await axios.post(`${API}/statuses`, { name, color });
+      }
+      const res = await axios.get(`${API}/statuses`);
+      setStatuses(res.data);
+      setName(""); setColor("#3B82F6"); setEditing(null);
+    } finally { setSaving(false); }
   };
 
   return (
@@ -558,11 +630,11 @@ function StatusesPage({ statuses, setStatuses }) {
           </div>
         )}
         <div className="flex gap-2">
-          <button onClick={save} disabled={!name.trim()}
-            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl px-5 py-2 text-sm font-medium">
-            {editing ? "Güncelle" : "Ekle"}
+          <button onClick={save} disabled={!name.trim() || saving}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-xl px-5 py-2 text-sm font-medium min-w-[80px]">
+            {saving ? <Spinner /> : (editing ? "Güncelle" : "Ekle")}
           </button>
-          {editing && <button onClick={() => { setEditing(null); setName(""); setColor("#3B82F6"); }}
+          {editing && <button onClick={() => { setEditing(null); setName(""); setColor("#3B82F6"); }} disabled={saving}
             className="bg-gray-100 text-gray-700 rounded-xl px-5 py-2 text-sm font-medium">İptal</button>}
         </div>
       </div>
@@ -605,6 +677,8 @@ export default function App() {
   const [quickReplies, setQuickReplies] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [activeReminders, setActiveReminders] = useState([]);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const fetchTimeoutRef = useRef(null);
   const fetchConversations = () => {
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
@@ -613,6 +687,7 @@ export default function App() {
         const res = await axios.get(`${API}/conversations`);
         setConversations(res.data);
       } catch (err) { console.error(err); }
+      finally { setInitialLoad(false); }
     }, 500);
   };
 
@@ -659,17 +734,36 @@ export default function App() {
 
   useEffect(() => {
     if (!selected) return;
-    axios.get(`${API}/conversations/${selected.id}/messages`).then(r => setMessages(r.data));
-    axios.get(`${API}/conversations/${selected.id}/window`).then(r => setWindow24(r.data));
+    setMessagesLoading(true);
+    setMessages([]);
+    Promise.all([
+      axios.get(`${API}/conversations/${selected.id}/messages`),
+      axios.get(`${API}/conversations/${selected.id}/window`)
+    ]).then(([m, w]) => {
+      setMessages(m.data);
+      setWindow24(w.data);
+    }).finally(() => setMessagesLoading(false));
   }, [selected?.id]);
 
   const sendReply = async () => {
     if (!replyText.trim() || !selected) return;
+    const text = replyText;
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      content: text,
+      direction: "outbound",
+      timestamp: new Date().toISOString(),
+      is_read: true,
+      message_type: "text",
+      _pending: true,
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    setReplyText("");
     setSending(true);
     try {
-      const res = await axios.post(`${API}/conversations/${selected.id}/reply`, { text: replyText });
+      const res = await axios.post(`${API}/conversations/${selected.id}/reply`, { text });
       if (res.data.status === "ok") {
-        setReplyText("");
         const [m, w] = await Promise.all([
           axios.get(`${API}/conversations/${selected.id}/messages`),
           axios.get(`${API}/conversations/${selected.id}/window`)
@@ -677,8 +771,16 @@ export default function App() {
         setMessages(m.data);
         setWindow24(w.data);
         fetchConversations();
-      } else alert("Hata: " + res.data.error);
-    } catch { alert("Mesaj gönderilemedi!"); }
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setReplyText(text);
+        alert("Hata: " + res.data.error);
+      }
+    } catch {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setReplyText(text);
+      alert("Mesaj gönderilemedi!");
+    }
     setSending(false);
   };
 
@@ -736,6 +838,7 @@ export default function App() {
           sending={sending} sendReply={sendReply} handleKeyDown={handleKeyDown}
           quickReplies={quickReplies} syncing={syncing} syncConversations={syncConversations}
           lastSync={lastSync} statuses={statuses} onContactUpdate={fetchConversations}
+          initialLoad={initialLoad} messagesLoading={messagesLoading}
         />
       )}
       {page === "quickreplies" && <QuickRepliesPage quickReplies={quickReplies} setQuickReplies={setQuickReplies} />}
