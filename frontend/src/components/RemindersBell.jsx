@@ -77,13 +77,19 @@ export default function RemindersBell({ expanded = true }) {
           bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
           border border-slate-200/60 dark:border-white/10
           shadow-2xl shadow-indigo-500/20 flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-200/60 dark:border-white/10">
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Bugünün Hatırlatmaları</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {items.length === 0
-                ? "Bugün için hatırlatma yok"
-                : `${remaining.length} bekliyor · ${items.length - remaining.length} tamamlandı`}
+          <div className="px-4 py-3 border-b border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Bugünün Hatırlatmaları</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {items.length === 0
+                  ? "Bugün için hatırlatma yok"
+                  : `${remaining.length} bekliyor · ${items.length - remaining.length} tamamlandı`}
+              </div>
             </div>
+            <Link to="/hatirlatmalar" onClick={() => setOpen(false)}
+              className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline whitespace-nowrap">
+              Tümü →
+            </Link>
           </div>
 
           <div className="flex-1 overflow-y-auto">

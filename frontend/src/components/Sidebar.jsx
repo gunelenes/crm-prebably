@@ -8,6 +8,7 @@ const menuItems = [
   { to: "/dashboard", icon: "🏠", label: "Anasayfa" },
   { to: "/mesajlar", icon: "💬", label: "Mesajlar" },
   { to: "/kisiler", icon: "👤", label: "Kişiler" },
+  { to: "/hatirlatmalar", icon: "🔔", label: "Hatırlatmalar" },
   { to: "/odemeler", icon: "💳", label: "Ödemeler", adminOnly: true },
   { to: "/hazir-mesajlar", icon: "⚡", label: "Hazır Mesajlar" },
   { to: "/parametreler", icon: "⚙️", label: "Parametreler" },

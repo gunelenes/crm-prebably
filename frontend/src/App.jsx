@@ -6,6 +6,7 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import MessagesPage from "./pages/MessagesPage";
 import ContactsPage from "./pages/contacts/ContactsPage";
 import PaymentsPage from "./pages/payments/PaymentsPage";
+import RemindersPage from "./pages/RemindersPage";
 import QuickRepliesPage from "./pages/QuickRepliesPage";
 import ParametersPage from "./pages/parameters/ParametersPage";
 import UsersPage from "./pages/UsersPage";
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="mesajlar" element={<MessagesPage />} />
         <Route path="kisiler" element={<ContactsPage />} />
+        <Route path="hatirlatmalar" element={<RemindersPage />} />
         <Route path="odemeler" element={
           <ProtectedRoute adminOnly><PaymentsPage /></ProtectedRoute>
         } />

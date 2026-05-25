@@ -182,6 +182,81 @@ def get_active_reminders(_: User = Depends(get_current_user), db: Session = Depe
     } for r in reminders]
 
 
+@router.get("/reminders/search")
+def search_reminders(
+    advisor_user_id: Optional[int] = None,
+    contact_id: Optional[int] = None,
+    status: str = "all",          # 'pending' | 'done' | 'all'
+    scope: str = "all",            # 'today' | 'upcoming' | 'overdue' | 'all'
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    sort_dir: str = "asc",
+    limit: int = 200,
+    offset: int = 0,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import timedelta
+    limit = max(1, min(int(limit), 500))
+    offset = max(0, int(offset))
+
+    q = (db.query(Reminder)
+         .options(joinedload(Reminder.advisor_user),
+                  joinedload(Reminder.contact),
+                  joinedload(Reminder.created_by)))
+
+    if advisor_user_id:
+        q = q.filter(Reminder.advisor_user_id == advisor_user_id)
+    if contact_id:
+        q = q.filter(Reminder.contact_id == contact_id)
+
+    if status == "pending":
+        q = q.filter(Reminder.is_done == False)
+    elif status == "done":
+        q = q.filter(Reminder.is_done == True)
+
+    now = datetime.utcnow()
+    tr_now = now + timedelta(hours=3)
+    tr_today_start = tr_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = tr_today_start - timedelta(hours=3)
+    today_end_utc = today_start_utc + timedelta(days=1)
+
+    if scope == "today":
+        q = q.filter(Reminder.remind_at >= today_start_utc, Reminder.remind_at < today_end_utc)
+    elif scope == "upcoming":
+        q = q.filter(Reminder.remind_at >= now)
+    elif scope == "overdue":
+        q = q.filter(Reminder.remind_at < now, Reminder.is_done == False)
+
+    if date_from:
+        try: q = q.filter(Reminder.remind_at >= datetime.fromisoformat(date_from.replace("Z", "")))
+        except: pass
+    if date_to:
+        try: q = q.filter(Reminder.remind_at <= datetime.fromisoformat(date_to.replace("Z", "")))
+        except: pass
+
+    total = q.with_entities(func.count(Reminder.id)).order_by(None).scalar() or 0
+
+    direction = desc if sort_dir == "desc" else asc
+    q = q.order_by(direction(Reminder.remind_at))
+
+    rows = q.limit(limit).offset(offset).all()
+    items = [{
+        "id": r.id,
+        "contact_id": r.contact_id,
+        "contact_name": (r.contact.full_name or r.contact.name) if r.contact else None,
+        "title": r.title,
+        "description": r.description,
+        "remind_at": iso_utc(r.remind_at),
+        "is_done": r.is_done,
+        "advisor_user": {"id": r.advisor_user.id, "full_name": r.advisor_user.full_name, "username": r.advisor_user.username} if r.advisor_user else None,
+        "created_by": {"id": r.created_by.id, "full_name": r.created_by.full_name, "username": r.created_by.username} if r.created_by else None,
+        "created_at": iso_utc(r.created_at),
+    } for r in rows]
+
+    return {"total": int(total), "items": items}
+
+
 @router.get("/reminders/today")
 def get_today_reminders(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Bugüne (TR saatine göre) ait tüm hatırlatmalar — tamamlanmış olsun olmasın, saat sırasına göre."""
