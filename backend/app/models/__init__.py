@@ -80,6 +80,7 @@ class Conversation(Base):
     platform            = Column(String(20))
     unread_count        = Column(Integer, default=0)
     last_message_at     = Column(DateTime, default=datetime.utcnow)
+    reply_dismissed_at  = Column(DateTime, nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     contact             = relationship("Contact", back_populates="conversations")

@@ -33,10 +33,16 @@ def get_conversations(limit: int = 50, offset: int = 0, _: User = Depends(get_cu
             subq, Message.id == subq.c.max_id
         ).all()
 
-        last_messages = {m.conversation_id: m.content for m in msgs}
+        last_messages = {m.conversation_id: (m.content, m.direction, m.timestamp) for m in msgs}
 
     result = []
     for conv in conversations:
+        last_content, last_direction, last_ts = last_messages.get(conv.id, (None, None, None))
+        waiting_for_reply = (
+            last_direction == "inbound"
+            and last_ts is not None
+            and (conv.reply_dismissed_at is None or conv.reply_dismissed_at < last_ts)
+        )
         result.append({
             "id": conv.id,
             "platform": conv.platform,
@@ -55,10 +61,21 @@ def get_conversations(limit: int = 50, offset: int = 0, _: User = Depends(get_cu
                     "color": conv.contact.status.color
                 } if conv.contact.status else None,
             },
-            "last_message": last_messages.get(conv.id)
+            "last_message": last_content,
+            "last_message_direction": last_direction,
+            "waiting_for_reply": waiting_for_reply,
         })
 
     return result
+
+@router.post("/conversations/{conversation_id}/dismiss-reply")
+def dismiss_reply(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conversation:
+        return {"error": "Konuşma bulunamadı"}
+    conversation.reply_dismissed_at = datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
 
 @router.get("/conversations/{conversation_id}/messages")
 def get_messages(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):

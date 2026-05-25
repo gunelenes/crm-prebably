@@ -40,6 +40,18 @@ export default function MessagesPage() {
     }, 500);
   };
 
+  const dismissReply = async (convId) => {
+    setConversations((prev) => prev.map((c) =>
+      c.id === convId ? { ...c, waiting_for_reply: false } : c
+    ));
+    try {
+      await api.post(`/conversations/${convId}/dismiss-reply`);
+    } catch (err) {
+      console.error(err);
+      fetchConversations();
+    }
+  };
+
   const syncConversations = async () => {
     setSyncing(true);
     try {
@@ -251,8 +263,13 @@ export default function MessagesPage() {
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
                         <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{conv.last_message || "Mesaj yok"}</span>
-                        {conv.unread_count > 0 && (
-                          <span className="text-white text-[10px] rounded-full px-1.5 py-0.5 flex-shrink-0 ml-1 bg-gradient-to-r from-indigo-500 to-violet-500 shadow-md shadow-indigo-500/40 font-semibold">{conv.unread_count}</span>
+                        {conv.waiting_for_reply && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); dismissReply(conv.id); }}
+                            title="Tıklayarak bekleme işaretini kaldır"
+                            className="text-[10px] rounded-full px-1.5 py-0.5 flex-shrink-0 ml-1 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-medium whitespace-nowrap hover:bg-amber-500/25 cursor-pointer transition-colors">
+                            ⏳ Cevap bekliyor
+                          </button>
                         )}
                       </div>
                       {conv.contact.status && (
