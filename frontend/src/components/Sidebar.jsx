@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import ThemeToggle from "./ThemeToggle";
+import RemindersBell from "./RemindersBell";
 
 const menuItems = [
   { to: "/dashboard", icon: "🏠", label: "Anasayfa" },
@@ -80,8 +81,9 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer: theme toggle + user + logout */}
+      {/* Footer: reminders + theme toggle + user + logout */}
       <div className="p-3 border-t border-slate-200/60 dark:border-white/10 space-y-2">
+        <RemindersBell expanded={open} />
         <ThemeToggle expanded={open} />
         {open ? (
           <div className="rounded-xl p-3 bg-white/60 dark:bg-white/5 backdrop-blur border border-slate-200/60 dark:border-white/10">

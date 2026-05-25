@@ -59,6 +59,7 @@ class Contact(Base):
     purchased             = Column(Boolean, default=False)
     reason_not_purchased  = Column(Text, nullable=True)
     assigned_to           = Column(String(100), nullable=True)
+    assigned_to_user_id   = Column(Integer, ForeignKey("users.id"), nullable=True)
     status_id             = Column(Integer, ForeignKey("statuses.id"), nullable=True)
     sector_id             = Column(Integer, ForeignKey("sectors.id"), nullable=True)
     training_set_id       = Column(Integer, ForeignKey("training_sets.id"), nullable=True)
@@ -67,6 +68,7 @@ class Contact(Base):
     status                = relationship("Status")
     sector                = relationship("Sector", foreign_keys=[sector_id])
     training_set          = relationship("TrainingSet", foreign_keys=[training_set_id])
+    assigned_to_user      = relationship("User", foreign_keys=[assigned_to_user_id])
     created_by            = relationship("User", foreign_keys=[created_by_user_id])
     conversations         = relationship("Conversation", back_populates="contact")
     activity_logs         = relationship("ActivityLog", back_populates="contact")
@@ -112,9 +114,11 @@ class ActivityLog(Base):
     old_status_id       = Column(Integer, nullable=True)
     new_status_id       = Column(Integer, nullable=True)
     advisor             = Column(String(100), nullable=True)
+    advisor_user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     contact             = relationship("Contact", back_populates="activity_logs")
+    advisor_user        = relationship("User", foreign_keys=[advisor_user_id])
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
 class Reminder(Base):
@@ -126,9 +130,11 @@ class Reminder(Base):
     remind_at           = Column(DateTime)
     is_done             = Column(Boolean, default=False)
     advisor             = Column(String(100), nullable=True)
+    advisor_user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     contact             = relationship("Contact", back_populates="reminders")
+    advisor_user        = relationship("User", foreign_keys=[advisor_user_id])
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
 class QuickReply(Base):

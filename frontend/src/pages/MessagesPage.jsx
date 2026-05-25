@@ -194,7 +194,7 @@ export default function MessagesPage() {
               <span className="text-xl">🔔</span>
               <div className="flex-1">
                 <div className="font-semibold text-sm">{r.title}</div>
-                <div className="text-xs opacity-80">{r.advisor}</div>
+                <div className="text-xs opacity-80">{r.advisor_user?.full_name || r.advisor_user?.username || ""}</div>
               </div>
               <button onClick={() => dismissReminder(r)} className="text-white/90 hover:text-white text-lg">✓</button>
             </div>

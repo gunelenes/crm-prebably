@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../api";
 import Spinner from "../../components/Spinner";
+import UserSelect from "../../components/UserSelect";
 
 const inputCls =
   "w-full rounded-xl px-3 py-2 text-sm transition-all " +
@@ -67,8 +68,9 @@ export default function ContactProfileTab({ profile, sectors, trainingSets, cont
                 : <div className="text-sm text-slate-800 dark:text-slate-100">{text("phone")}</div>}
             </Field>
             <Field label="Sorumlu Danışman">
-              {editing ? <input value={form.assigned_to || ""} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className={inputCls} />
-                : <div className="text-sm text-slate-800 dark:text-slate-100">{text("assigned_to")}</div>}
+              {editing
+                ? <UserSelect value={form.assigned_to_user_id} onChange={(v) => setForm({ ...form, assigned_to_user_id: v })} placeholder="Seç" />
+                : <div className="text-sm text-slate-800 dark:text-slate-100">{profile.assigned_to_user?.full_name || profile.assigned_to_user?.username || "—"}</div>}
             </Field>
             <Field label="Satın Alma Potansiyeli">
               {editing ? (

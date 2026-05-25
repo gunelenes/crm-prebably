@@ -67,6 +67,27 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS training_set_id INTEGER REFERENCES
 --   ALTER TABLE contacts DROP COLUMN IF EXISTS source_video;
 --
 -- ============================================================================
+-- 5) Danışman FK kolonları (2026-05 — User dropdown'a geçiş)
+-- ============================================================================
+-- Eski serbest metin 'advisor' / 'assigned_to' alanları yerine User'a FK.
+
+ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS advisor_user_id     INTEGER REFERENCES users(id);
+ALTER TABLE reminders     ADD COLUMN IF NOT EXISTS advisor_user_id     INTEGER REFERENCES users(id);
+ALTER TABLE contacts      ADD COLUMN IF NOT EXISTS assigned_to_user_id INTEGER REFERENCES users(id);
+
+-- Eski serbest metin verisini temizle (proje patlamasın, yeni alanlar NULL kalır,
+-- kullanıcı UI'dan dropdown ile yeniden atayacak):
+UPDATE activity_logs SET advisor     = NULL WHERE advisor     IS NOT NULL;
+UPDATE reminders     SET advisor     = NULL WHERE advisor     IS NOT NULL;
+UPDATE contacts      SET assigned_to = NULL WHERE assigned_to IS NOT NULL;
+
+-- Opsiyonel: artık kullanılmayan string kolonları tamamen sil
+-- (modelde duruyor ama backend hiç yazmıyor; istersen schema sadeleştir):
+-- ALTER TABLE activity_logs DROP COLUMN IF EXISTS advisor;
+-- ALTER TABLE reminders     DROP COLUMN IF EXISTS advisor;
+-- ALTER TABLE contacts      DROP COLUMN IF EXISTS assigned_to;
+
+-- ============================================================================
 -- ROLLBACK (gerekirse):
 --   ALTER TABLE statuses       DROP COLUMN created_by_user_id;
 --   ALTER TABLE contacts       DROP COLUMN created_by_user_id,

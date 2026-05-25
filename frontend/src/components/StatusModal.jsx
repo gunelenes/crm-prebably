@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../api";
 import Spinner from "./Spinner";
+import UserSelect from "./UserSelect";
 
 const inputCls =
   "w-full rounded-xl px-4 py-2 text-sm transition-all " +
@@ -13,7 +14,7 @@ const inputCls =
 export default function StatusModal({ contact, statuses, onClose, onSave }) {
   const [selectedStatus, setSelectedStatus] = useState(contact?.status_id || "");
   const [note, setNote] = useState("");
-  const [advisor, setAdvisor] = useState("");
+  const [advisorUserId, setAdvisorUserId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -21,7 +22,7 @@ export default function StatusModal({ contact, statuses, onClose, onSave }) {
     setSaving(true);
     try {
       await api.put(`/contacts/${contact.id}/status`, {
-        status_id: selectedStatus || null, note, advisor,
+        status_id: selectedStatus || null, note, advisor_user_id: advisorUserId,
       });
       onSave();
       onClose();
@@ -51,8 +52,9 @@ export default function StatusModal({ contact, statuses, onClose, onSave }) {
         </div>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Açıklama..." rows={2}
           className={`${inputCls} resize-none mb-3`} />
-        <input value={advisor} onChange={(e) => setAdvisor(e.target.value)} placeholder="Danışman adı (boş bırakılırsa hesabınız)"
-          className={`${inputCls} mb-5`} />
+        <div className="mb-5">
+          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman seç (boş bırakılırsa hesabınız)" />
+        </div>
         <div className="flex gap-2">
           <button onClick={save} disabled={saving}
             className="flex-1 py-2 rounded-xl text-sm font-semibold text-white transition-all

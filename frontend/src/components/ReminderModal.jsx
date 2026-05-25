@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../api";
 import Spinner from "./Spinner";
+import UserSelect from "./UserSelect";
 
 const inputCls =
   "w-full rounded-xl px-4 py-2 text-sm transition-all " +
@@ -14,7 +15,7 @@ export default function ReminderModal({ contactId, onClose, onSave }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [remindAt, setRemindAt] = useState("");
-  const [advisor, setAdvisor] = useState("");
+  const [advisorUserId, setAdvisorUserId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -22,7 +23,7 @@ export default function ReminderModal({ contactId, onClose, onSave }) {
     setSaving(true);
     try {
       await api.post(`/contacts/${contactId}/reminders`, {
-        title, description, remind_at: remindAt, advisor,
+        title, description, remind_at: remindAt, advisor_user_id: advisorUserId,
       });
       onSave();
       onClose();
@@ -41,8 +42,9 @@ export default function ReminderModal({ contactId, onClose, onSave }) {
           className={`${inputCls} resize-none mb-3`} />
         <input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)}
           className={`${inputCls} mb-3`} />
-        <input value={advisor} onChange={(e) => setAdvisor(e.target.value)} placeholder="Danışman adı (boş bırakılırsa hesabınız)"
-          className={`${inputCls} mb-5`} />
+        <div className="mb-5">
+          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman seç (boş bırakılırsa hesabınız)" />
+        </div>
         <div className="flex gap-2">
           <button onClick={save} disabled={!title.trim() || !remindAt || saving}
             className="flex-1 py-2 rounded-xl text-sm font-semibold text-white transition-all

@@ -4,6 +4,7 @@ import { avatarUrl, formatTime, platformIcon } from "../utils";
 import Spinner from "./Spinner";
 import ReminderModal from "./ReminderModal";
 import StatusModal from "./StatusModal";
+import UserSelect from "./UserSelect";
 
 const inputCls =
   "w-full rounded-lg px-3 py-1.5 text-sm transition-all " +
@@ -72,8 +73,8 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
   };
 
   const userLabel = (item) => {
+    if (item.advisor_user) return item.advisor_user.full_name || item.advisor_user.username;
     if (item.created_by) return item.created_by.full_name || item.created_by.username;
-    if (item.advisor) return item.advisor;
     return null;
   };
 
@@ -131,7 +132,6 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
             {[
               { key: "full_name", label: "Ad Soyad" },
               { key: "phone", label: "Telefon" },
-              { key: "assigned_to", label: "Sorumlu Danışman" },
             ].map(({ key, label }) => (
               <div key={key}>
                 <label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">{label}</label>
@@ -143,6 +143,14 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
                 )}
               </div>
             ))}
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">Sorumlu Danışman</label>
+              {editing ? (
+                <UserSelect value={form.assigned_to_user_id} onChange={(v) => setForm({ ...form, assigned_to_user_id: v })} placeholder="Seç" />
+              ) : (
+                <div className="text-sm text-slate-700 dark:text-slate-200">{profile.assigned_to_user?.full_name || profile.assigned_to_user?.username || <span className="text-slate-400 dark:text-slate-500">—</span>}</div>
+              )}
+            </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">Sektör</label>
               {editing ? (

@@ -1,12 +1,25 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password, require_admin
+from app.auth import get_current_user, hash_password, require_admin
 from app.database import get_db
 from app.models import User
 from app.utils import iso_utc
 
 router = APIRouter()
+
+
+@router.get("/users/active")
+def list_active_users(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Tüm authenticated kullanıcılar için: aktif kullanıcı listesi (danışman dropdown'u)."""
+    users = (db.query(User)
+             .filter(User.is_active == True)
+             .order_by(User.full_name.asc(), User.username.asc())
+             .all())
+    return [
+        {"id": u.id, "username": u.username, "full_name": u.full_name, "role": u.role}
+        for u in users
+    ]
 
 
 @router.get("/users")

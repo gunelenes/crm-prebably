@@ -2,8 +2,8 @@ import api from "../../api";
 import { formatTime } from "../../utils";
 
 const userLabel = (item) => {
+  if (item.advisor_user) return item.advisor_user.full_name || item.advisor_user.username;
   if (item.created_by) return item.created_by.full_name || item.created_by.username;
-  if (item.advisor) return item.advisor;
   return null;
 };
 
