@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.database import engine
 from app.models import Base
-from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api, bank_accounts as bank_accounts_api, payments as payments_api
+from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api, bank_accounts as bank_accounts_api, payments as payments_api, dashboard as dashboard_api
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 http_client: httpx.AsyncClient | None = None
@@ -44,6 +44,7 @@ app = FastAPI(title="CRM API", lifespan=lifespan)
 
 app.include_router(auth_api.router, prefix="/api")
 app.include_router(users_api.router, prefix="/api")
+app.include_router(dashboard_api.router, prefix="/api")
 app.include_router(webhook.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(quick_replies.router, prefix="/api")

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/dashboard/DashboardPage";
 import MessagesPage from "./pages/MessagesPage";
 import ContactsPage from "./pages/contacts/ContactsPage";
 import PaymentsPage from "./pages/payments/PaymentsPage";
@@ -14,7 +15,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/mesajlar" replace />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="mesajlar" element={<MessagesPage />} />
         <Route path="kisiler" element={<ContactsPage />} />
         <Route path="odemeler" element={

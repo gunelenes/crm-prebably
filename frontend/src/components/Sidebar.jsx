@@ -4,6 +4,7 @@ import { useAuth } from "../AuthContext";
 import ThemeToggle from "./ThemeToggle";
 
 const menuItems = [
+  { to: "/dashboard", icon: "🏠", label: "Anasayfa" },
   { to: "/mesajlar", icon: "💬", label: "Mesajlar" },
   { to: "/kisiler", icon: "👤", label: "Kişiler" },
   { to: "/odemeler", icon: "💳", label: "Ödemeler", adminOnly: true },
