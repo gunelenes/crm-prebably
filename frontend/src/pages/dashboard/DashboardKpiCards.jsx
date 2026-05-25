@@ -19,7 +19,7 @@ export default function DashboardKpiCards({ today }) {
       <KpiCard icon="💬" label="Gelen Mesaj" value={t.incoming_messages} accent="text-indigo-500" />
       <KpiCard icon="✉️" label="Giden Mesaj" value={t.outgoing_messages} accent="text-violet-500" />
       <KpiCard icon="👤" label="Yeni Kişi" value={t.new_contacts} accent="text-emerald-500" />
-      <KpiCard icon="💬" label="Açık Konuşma" value={t.open_conversations} accent="text-orange-500" />
+      <KpiCard icon="⌛" label="Cevap Bekliyor" value={t.waiting_replies} accent="text-orange-500" />
       <KpiCard icon="⏰" label="Aktif Hatırlatma" value={t.active_reminders} accent="text-rose-500" />
     </div>
   );

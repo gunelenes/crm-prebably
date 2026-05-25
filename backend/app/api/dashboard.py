@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_user
@@ -52,16 +52,38 @@ def dashboard_summary(
                         .filter(Reminder.is_done == False,
                                 Reminder.remind_at <= datetime.utcnow())
                         .scalar() or 0)
-    open_conversations = (db.query(func.count(Conversation.id))
-                          .filter(Conversation.unread_count > 0)
-                          .scalar() or 0)
+
+    # Cevap bekleyen konuşma sayısı:
+    #   - Son mesaj inbound
+    #   - reply_dismissed_at NULL veya son mesajdan önce (yani dismiss güncellenmemiş)
+    max_msg_subq = (
+        db.query(
+            Message.conversation_id.label("conv_id"),
+            func.max(Message.id).label("max_id"),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    waiting_replies = (
+        db.query(func.count(Conversation.id))
+        .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
+        .join(Message, Message.id == max_msg_subq.c.max_id)
+        .filter(
+            Message.direction == "inbound",
+            or_(
+                Conversation.reply_dismissed_at.is_(None),
+                Conversation.reply_dismissed_at < Message.timestamp,
+            ),
+        )
+        .scalar()
+    ) or 0
 
     today = {
         "incoming_messages": int(incoming),
         "outgoing_messages": int(outgoing),
         "new_contacts": int(new_contacts),
         "active_reminders": int(active_reminders),
-        "open_conversations": int(open_conversations),
+        "waiting_replies": int(waiting_replies),
     }
 
     # Aylık finansal — sadece admin

@@ -32,6 +32,7 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
     assignedTo: "",
     purchased: null,
     purchasePotential: null,
+    waitingForReply: null,
     sortBy: filters.sortBy,
     sortDir: filters.sortDir,
   });
@@ -84,6 +85,15 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
         <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sorumlu Danışman</div>
         <input value={filters.assignedTo} onChange={(e) => update({ assignedTo: e.target.value })} placeholder="Tümü"
           className={`${inputCls} w-full`} />
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Cevap Bekliyor</div>
+        <div className="flex flex-wrap gap-1">
+          <Pill active={filters.waitingForReply === null} onClick={() => update({ waitingForReply: null })}>Tümü</Pill>
+          <Pill active={filters.waitingForReply === true} onClick={() => update({ waitingForReply: true })}>⌛ Bekleyenler</Pill>
+          <Pill active={filters.waitingForReply === false} onClick={() => update({ waitingForReply: false })}>Yanıtlananlar</Pill>
+        </div>
       </div>
 
       <div>

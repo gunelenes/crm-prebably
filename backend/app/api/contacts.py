@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Body
-from sqlalchemy import func, desc, asc
+from sqlalchemy import func, desc, asc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User
@@ -19,6 +19,7 @@ def search_contacts(
     assigned_to: Optional[str] = None,
     purchased: Optional[bool] = None,
     purchase_potential: Optional[str] = None,
+    waiting_for_reply: Optional[bool] = None,
     sort_by: str = "last_message_at",
     sort_dir: str = "desc",
     limit: int = 50,
@@ -69,6 +70,35 @@ def search_contacts(
         base_query = base_query.filter(Contact.purchased == purchased)
     if purchase_potential:
         base_query = base_query.filter(Contact.purchase_potential == purchase_potential)
+
+    if waiting_for_reply is not None:
+        # Cevap bekleyen contact'lar:
+        # En az bir conversation'ında son mesaj inbound + dismiss edilmemiş
+        max_msg_subq = (
+            db.query(
+                Message.conversation_id.label("conv_id"),
+                func.max(Message.id).label("max_id"),
+            )
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+        waiting_contact_ids = (
+            db.query(Conversation.contact_id)
+            .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
+            .join(Message, Message.id == max_msg_subq.c.max_id)
+            .filter(
+                Message.direction == "inbound",
+                or_(
+                    Conversation.reply_dismissed_at.is_(None),
+                    Conversation.reply_dismissed_at < Message.timestamp,
+                ),
+            )
+            .distinct()
+        )
+        if waiting_for_reply:
+            base_query = base_query.filter(Contact.id.in_(waiting_contact_ids))
+        else:
+            base_query = base_query.filter(~Contact.id.in_(waiting_contact_ids))
 
     # Sıralama
     direction = desc if sort_dir != "asc" else asc
