@@ -48,9 +48,12 @@ def dashboard_summary(
     new_contacts = (db.query(func.count(Contact.id))
                     .filter(Contact.created_at >= today_start)
                     .scalar() or 0)
+    # Bugün için bekleyen hatırlatmalar (TR saatine göre, RemindersBell ile aynı semantik)
+    today_end_utc = today_start + timedelta(days=1)
     active_reminders = (db.query(func.count(Reminder.id))
                         .filter(Reminder.is_done == False,
-                                Reminder.remind_at <= datetime.utcnow())
+                                Reminder.remind_at >= today_start,
+                                Reminder.remind_at < today_end_utc)
                         .scalar() or 0)
 
     # Cevap bekleyen konuşma sayısı:
