@@ -333,6 +333,36 @@ def mark_reminder_done(contact_id: int, reminder_id: int, _: User = Depends(get_
     db.commit()
     return {"status": "ok"}
 
+@router.put("/contacts/{contact_id}/reminders/{reminder_id}")
+def update_reminder(contact_id: int, reminder_id: int, body: dict = Body(...), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    if not reminder:
+        return {"error": "Bulunamadı"}
+    if "title" in body and body["title"]:
+        reminder.title = body["title"]
+    if "description" in body:
+        reminder.description = body["description"]
+    if "remind_at" in body and body["remind_at"]:
+        try:
+            reminder.remind_at = datetime.fromisoformat(body["remind_at"])
+        except Exception:
+            return {"error": "Geçersiz tarih"}
+    if "advisor_user_id" in body:
+        reminder.advisor_user_id = body["advisor_user_id"] or None
+    if "is_done" in body:
+        reminder.is_done = bool(body["is_done"])
+    db.commit()
+    return {"status": "ok"}
+
+@router.delete("/contacts/{contact_id}/reminders/{reminder_id}")
+def delete_reminder(contact_id: int, reminder_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
+    if not reminder:
+        return {"error": "Bulunamadı"}
+    db.delete(reminder)
+    db.commit()
+    return {"status": "ok"}
+
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     contact = (db.query(Contact)

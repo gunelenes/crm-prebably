@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../api";
 import Spinner from "./Spinner";
 import UserSelect from "./UserSelect";
@@ -11,22 +11,47 @@ const inputCls =
   "focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 " +
   "text-slate-800 dark:text-slate-100";
 
-export default function ReminderModal({ contactId, onClose, onSave }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [remindAt, setRemindAt] = useState("");
-  const [advisorUserId, setAdvisorUserId] = useState(null);
+const toDatetimeLocal = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  // datetime-local input bekler: YYYY-MM-DDTHH:mm (yerel saat)
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+export default function ReminderModal({ contactId, editingReminder = null, onClose, onSave }) {
+  const isEdit = !!editingReminder;
+  const targetContactId = contactId || editingReminder?.contact_id;
+
+  const [title, setTitle] = useState(editingReminder?.title || "");
+  const [description, setDescription] = useState(editingReminder?.description || "");
+  const [remindAt, setRemindAt] = useState(toDatetimeLocal(editingReminder?.remind_at));
+  const [advisorUserId, setAdvisorUserId] = useState(editingReminder?.advisor_user?.id || null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (editingReminder) {
+      setTitle(editingReminder.title || "");
+      setDescription(editingReminder.description || "");
+      setRemindAt(toDatetimeLocal(editingReminder.remind_at));
+      setAdvisorUserId(editingReminder.advisor_user?.id || null);
+    }
+  }, [editingReminder?.id]);
+
   const save = async () => {
-    if (!title.trim() || !remindAt) return;
+    if (!title.trim() || !remindAt || !targetContactId) return;
     setSaving(true);
     try {
-      await api.post(`/contacts/${contactId}/reminders`, {
+      const body = {
         title, description, remind_at: remindAt, advisor_user_id: advisorUserId,
-      });
-      onSave();
-      onClose();
+      };
+      if (isEdit) {
+        await api.put(`/contacts/${targetContactId}/reminders/${editingReminder.id}`, body);
+      } else {
+        await api.post(`/contacts/${targetContactId}/reminders`, body);
+      }
+      onSave?.();
+      onClose?.();
     } finally { setSaving(false); }
   };
 
@@ -34,7 +59,7 @@ export default function ReminderModal({ contactId, onClose, onSave }) {
     <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="rounded-3xl p-7 w-full max-w-md bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl shadow-indigo-500/20">
         <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg mb-5 flex items-center gap-2">
-          <span>🔔</span> Hatırlatma Oluştur
+          <span>🔔</span> {isEdit ? "Hatırlatmayı Düzenle" : "Hatırlatma Oluştur"}
         </h3>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Başlık"
           className={`${inputCls} mb-3`} />
@@ -52,7 +77,7 @@ export default function ReminderModal({ contactId, onClose, onSave }) {
               hover:from-indigo-600 hover:to-violet-600
               shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50
               disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none dark:disabled:from-slate-700 dark:disabled:to-slate-700">
-            {saving ? <Spinner /> : "Kaydet"}
+            {saving ? <Spinner /> : (isEdit ? "Güncelle" : "Kaydet")}
           </button>
           <button onClick={onClose} disabled={saving}
             className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors

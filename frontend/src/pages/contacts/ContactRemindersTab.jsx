@@ -1,5 +1,7 @@
+import { useState } from "react";
 import api from "../../api";
 import { formatTime } from "../../utils";
+import ReminderModal from "../../components/ReminderModal";
 
 const userLabel = (item) => {
   if (item.advisor_user) return item.advisor_user.full_name || item.advisor_user.username;
@@ -8,8 +10,16 @@ const userLabel = (item) => {
 };
 
 export default function ContactRemindersTab({ reminders, contactId, onOpenNew, onChanged }) {
+  const [editing, setEditing] = useState(null);
+
   const markDone = async (id) => {
     await api.put(`/contacts/${contactId}/reminders/${id}/done`);
+    onChanged?.();
+  };
+
+  const remove = async (r) => {
+    if (!window.confirm(`"${r.title}" hatırlatmasını silmek istediğinden emin misin?`)) return;
+    await api.delete(`/contacts/${contactId}/reminders/${r.id}`);
     onChanged?.();
   };
 
@@ -40,18 +50,39 @@ export default function ContactRemindersTab({ reminders, contactId, onOpenNew, o
                       {userLabel(r) && <span>👤 {userLabel(r)}</span>}
                     </div>
                   </div>
-                  {!r.is_done && (
-                    <button onClick={() => markDone(r.id)}
-                      className="text-xs px-3 py-1.5 rounded-xl flex-shrink-0 text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-md shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-600">
-                      ✓ Tamamla
-                    </button>
-                  )}
+                  <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                    {!r.is_done && (
+                      <button onClick={() => markDone(r.id)}
+                        className="text-xs px-3 py-1.5 rounded-xl text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-md shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-600">
+                        ✓ Tamamla
+                      </button>
+                    )}
+                    <div className="flex gap-1">
+                      <button onClick={() => setEditing(r)}
+                        className="text-[11px] px-2 py-1 rounded-lg text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10 transition-colors">
+                        ✏️ Düzenle
+                      </button>
+                      <button onClick={() => remove(r)}
+                        className="text-[11px] px-2 py-1 rounded-lg text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 transition-colors">
+                        🗑 Sil
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {editing && (
+        <ReminderModal
+          contactId={contactId}
+          editingReminder={editing}
+          onClose={() => setEditing(null)}
+          onSave={() => { onChanged?.(); setEditing(null); }}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../api";
 import { formatTime } from "../utils";
 import UserSelect from "../components/UserSelect";
+import ReminderModal from "../components/ReminderModal";
 
 const inputCls =
   "rounded-xl px-3 py-1.5 text-sm transition-all " +
@@ -40,6 +41,7 @@ export default function RemindersPage() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(null);
   const debounceRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -62,6 +64,12 @@ export default function RemindersPage() {
 
   const markDone = async (r) => {
     await api.put(`/contacts/${r.contact_id}/reminders/${r.id}/done`);
+    load();
+  };
+
+  const removeReminder = async (r) => {
+    if (!window.confirm(`"${r.title}" hatırlatmasını silmek istediğinden emin misin?`)) return;
+    await api.delete(`/contacts/${r.contact_id}/reminders/${r.id}`);
     load();
   };
 
@@ -167,12 +175,27 @@ export default function RemindersPage() {
                               <span>📅 {formatTime(r.remind_at)}</span>
                             </div>
                           </div>
-                          {!r.is_done && (
-                            <button onClick={() => markDone(r)}
-                              className="flex-shrink-0 text-xs px-3 py-1.5 rounded-xl text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-md shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-600">
-                              ✓ Tamamla
-                            </button>
-                          )}
+                          <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                            {!r.is_done && (
+                              <button onClick={() => markDone(r)}
+                                title="Tamamla"
+                                className="text-xs px-3 py-1.5 rounded-xl text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-md shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-600">
+                                ✓ Tamamla
+                              </button>
+                            )}
+                            <div className="flex gap-1">
+                              <button onClick={() => setEditing(r)}
+                                title="Düzenle"
+                                className="text-[11px] px-2 py-1 rounded-lg text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10 transition-colors">
+                                ✏️ Düzenle
+                              </button>
+                              <button onClick={() => removeReminder(r)}
+                                title="Sil"
+                                className="text-[11px] px-2 py-1 rounded-lg text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 transition-colors">
+                                🗑 Sil
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -183,6 +206,14 @@ export default function RemindersPage() {
           </div>
         )}
       </div>
+
+      {editing && (
+        <ReminderModal
+          editingReminder={editing}
+          onClose={() => setEditing(null)}
+          onSave={load}
+        />
+      )}
     </div>
   );
 }
