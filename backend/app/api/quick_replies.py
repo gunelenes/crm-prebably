@@ -1,3 +1,7 @@
+import os
+import subprocess
+import tempfile
+
 from fastapi import APIRouter, Depends, Body, File, UploadFile, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -7,13 +11,41 @@ from app.auth import get_current_user
 
 router = APIRouter()
 
-MAX_AUDIO_SIZE = 5 * 1024 * 1024  # 5 MB
-# Instagram'ın güvenle kabul ettiği formatlar + tarayıcı kaydı (webm/ogg) için izin.
-# webm/ogg gönderimi Instagram tarafında reddedilebilir; o durumda sunucuda dönüştürme gerekir.
-ALLOWED_AUDIO_MIME = {
-    "audio/mpeg", "audio/mp3", "audio/mp4", "audio/m4a", "audio/x-m4a",
-    "audio/aac", "audio/wav", "audio/webm", "audio/ogg",
-}
+MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25 MB (Instagram ses limiti)
+
+# Instagram ses için yalnızca aac/m4a/wav/mp4 kabul ediyor; mp3 ve tarayıcı kaydı (webm)
+# reddediliyor. Bu yüzden YÜKLENEN her şeyi AAC sesli .m4a'ya dönüştürüp öyle saklıyoruz.
+# Dönüştürülmüş çıktının mime'ı her zaman audio/mp4 olur.
+OUTPUT_AUDIO_MIME = "audio/mp4"
+
+
+def transcode_to_m4a(data: bytes) -> bytes:
+    """Herhangi bir ses (mp3/webm/ogg/wav...) → Instagram uyumlu AAC/.m4a.
+
+    imageio-ffmpeg ile gelen statik ffmpeg ikilisini kullanır (sistem kurulumu gerekmez).
+    +faststart: moov atom'unu başa alır ki Meta dosyayı stream ederek okuyabilsin.
+    """
+    import imageio_ffmpeg
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    with tempfile.TemporaryDirectory() as d:
+        inp = os.path.join(d, "input")
+        out = os.path.join(d, "output.m4a")
+        with open(inp, "wb") as f:
+            f.write(data)
+        cmd = [
+            ffmpeg, "-y", "-i", inp,
+            "-vn",                      # video akışını at (kapak resmi vb.)
+            "-c:a", "aac", "-b:a", "96k",
+            "-movflags", "+faststart",
+            out,
+        ]
+        proc = subprocess.run(cmd, capture_output=True)
+        if proc.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) == 0:
+            detail = proc.stderr.decode(errors="ignore")[-400:]
+            raise HTTPException(400, f"Ses dönüştürülemedi: {detail}")
+        with open(out, "rb") as f:
+            return f.read()
 
 
 @router.get("/quick-replies")
@@ -81,16 +113,18 @@ async def upload_audio(
     if not data:
         raise HTTPException(400, "Boş dosya")
     if len(data) > MAX_AUDIO_SIZE:
-        raise HTTPException(400, "Ses dosyası 5MB'tan büyük olamaz")
-    mime = (audio.content_type or "").split(";")[0].strip().lower()
-    if mime not in ALLOWED_AUDIO_MIME:
-        raise HTTPException(400, f"Desteklenmeyen ses formatı: {mime or 'bilinmiyor'}")
-    reply.audio_data = data
-    reply.audio_filename = audio.filename
-    reply.audio_mime = mime
-    reply.audio_size = len(data)
+        raise HTTPException(400, "Ses dosyası 25MB'tan büyük olamaz")
+
+    # Her formatı Instagram uyumlu .m4a'ya dönüştür.
+    m4a = transcode_to_m4a(data)
+
+    base = os.path.splitext(audio.filename or "ses")[0]
+    reply.audio_data = m4a
+    reply.audio_filename = f"{base}.m4a"
+    reply.audio_mime = OUTPUT_AUDIO_MIME
+    reply.audio_size = len(m4a)
     db.commit()
-    return {"status": "ok", "audio_mime": mime, "audio_size": len(data)}
+    return {"status": "ok", "audio_mime": OUTPUT_AUDIO_MIME, "audio_size": len(m4a)}
 
 
 @router.delete("/quick-replies/{reply_id}/audio")
@@ -116,7 +150,7 @@ def get_audio(reply_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Ses yok")
     return Response(
         content=bytes(reply.audio_data),
-        media_type=reply.audio_mime or "audio/mpeg",
+        media_type=reply.audio_mime or OUTPUT_AUDIO_MIME,
         headers={
             "Content-Disposition": f'inline; filename="{reply.audio_filename or "ses"}"',
             "Cache-Control": "public, max-age=86400",
