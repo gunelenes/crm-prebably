@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
-from app.models import Contact, Conversation, Message, User
+from app.models import Contact, Conversation, Message, User, QuickReply
 from app.auth import get_current_user
-from app.config import INSTAGRAM_TOKEN
+from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL
 from app.utils import iso_utc
 from datetime import datetime, timedelta
 
@@ -89,7 +89,8 @@ def get_messages(conversation_id: int, _: User = Depends(get_current_user), db: 
         "direction": m.direction,
         "timestamp": iso_utc(m.timestamp),
         "is_read": m.is_read,
-        "message_type": m.message_type
+        "message_type": m.message_type,
+        "quick_reply_id": m.quick_reply_id,
     } for m in messages]
 
 @router.post("/conversations/{conversation_id}/reply")
@@ -149,6 +150,74 @@ async def reply_message(conversation_id: int, request: Request, current_user: Us
         return {"status": "ok"}
 
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
+
+@router.post("/conversations/{conversation_id}/reply-audio")
+async def reply_audio(conversation_id: int, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    body = await request.json()
+    quick_reply_id = body.get("quick_reply_id")
+
+    if not quick_reply_id:
+        return {"error": "Hazır mesaj seçilmedi"}
+
+    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conversation:
+        return {"error": "Konuşma bulunamadı"}
+
+    reply = db.query(QuickReply).filter(QuickReply.id == quick_reply_id).first()
+    if not reply or not reply.audio_data:
+        return {"error": "Bu hazır mesajın ses dosyası yok"}
+
+    contact = db.query(Contact).filter(Contact.id == conversation.contact_id).first()
+
+    # Meta sesi bu public adresten sunucu tarafında çeker.
+    audio_url = f"{PUBLIC_BASE_URL.rstrip('/')}/api/quick-replies/{reply.id}/audio"
+
+    url = "https://graph.instagram.com/v19.0/me/messages"
+    payload = {
+        "recipient": {"id": contact.external_id},
+        "message": {"attachment": {"type": "audio", "payload": {"url": audio_url}}},
+        "access_token": INSTAGRAM_TOKEN,
+    }
+
+    response = await request.app.state.http.post(url, json=payload)
+    result = response.json()
+    print("Instagram ses yanıtı:", result)
+
+    if "error" not in result:
+        now = datetime.utcnow()
+        new_message = Message(
+            conversation_id=conversation_id,
+            direction="outbound",
+            content=f"🎤 {reply.title}",
+            message_type="audio",
+            platform=conversation.platform,
+            external_id=result.get("message_id"),
+            quick_reply_id=reply.id,
+            is_read=True,
+            timestamp=now,
+            created_by_user_id=current_user.id,
+        )
+        db.add(new_message)
+        conversation.last_message_at = now
+        db.commit()
+
+        try:
+            from app.main import sio
+            await sio.emit("new_message", {
+                "platform": conversation.platform,
+                "sender_id": contact.external_id,
+                "conversation_id": conversation.id,
+                "text": f"🎤 {reply.title}",
+                "direction": "outbound",
+                "is_new": False,
+            })
+        except Exception:
+            pass
+
+        return {"status": "ok"}
+
+    return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
+
 
 @router.get("/conversations/{conversation_id}/window")
 def check_window(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):

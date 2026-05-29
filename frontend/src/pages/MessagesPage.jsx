@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import api, { SOCKET_URL } from "../api";
+import api, { API, SOCKET_URL } from "../api";
 import { avatarUrl, formatTime, platformIcon } from "../utils";
 import { ConversationSkeleton, MessageSkeleton } from "../components/Skeletons";
 import ContactPanel from "../components/ContactPanel";
@@ -168,6 +168,38 @@ export default function MessagesPage() {
     setSending(false);
   };
 
+  const sendAudioReply = async (qr) => {
+    if (!selected || sending) return;
+    setShowQuickReplies(false);
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId, content: `🎤 ${qr.title}`, direction: "outbound",
+      timestamp: new Date().toISOString(), is_read: true, message_type: "audio",
+      quick_reply_id: qr.id, _pending: true,
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setSending(true);
+    try {
+      const res = await api.post(`/conversations/${selected.id}/reply-audio`, { quick_reply_id: qr.id });
+      if (res.data.status === "ok") {
+        const [m, w] = await Promise.all([
+          api.get(`/conversations/${selected.id}/messages`),
+          api.get(`/conversations/${selected.id}/window`),
+        ]);
+        setMessages(m.data);
+        setWindow24(w.data);
+        fetchConversations();
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        alert("Hata: " + res.data.error);
+      }
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      alert("Sesli mesaj gönderilemedi!");
+    }
+    setSending(false);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
   };
@@ -311,7 +343,16 @@ export default function MessagesPage() {
                     <div className={`max-w-sm px-4 py-2.5 text-sm ${msg.direction === "outbound"
                       ? "bg-gradient-to-br from-indigo-500 to-violet-500 text-white rounded-2xl rounded-br-md shadow-lg shadow-indigo-500/30"
                       : "bg-white/80 dark:bg-slate-800/60 backdrop-blur text-slate-800 dark:text-slate-100 border border-slate-200/60 dark:border-white/10 rounded-2xl rounded-bl-md shadow-sm"}`}>
-                      <div className="leading-relaxed">{msg.content}</div>
+                      {msg.message_type === "audio" && msg.quick_reply_id ? (
+                        <div className="leading-relaxed">
+                          <div className="mb-1">{msg.content}</div>
+                          {!msg._pending && (
+                            <audio controls src={`${API}/quick-replies/${msg.quick_reply_id}/audio`} className="h-8 max-w-full" />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="leading-relaxed">{msg.content}</div>
+                      )}
                       <div className={`text-[10px] mt-1 ${msg.direction === "outbound" ? "text-indigo-100" : "text-slate-400 dark:text-slate-500"}`}>
                         {msg._pending ? "⏳ Gönderiliyor..." : formatTime(msg.timestamp)}
                       </div>
@@ -334,10 +375,18 @@ export default function MessagesPage() {
                     {showQuickReplies && quickReplies.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
                         {quickReplies.map((qr) => (
-                          <button key={qr.id} onClick={() => { setReplyText(qr.content); setShowQuickReplies(false); }}
-                            className="text-xs px-3 py-1.5 rounded-full transition-all bg-indigo-500/10 dark:bg-indigo-500/15 hover:bg-indigo-500/20 dark:hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-                            {qr.title}
-                          </button>
+                          qr.has_audio ? (
+                            <button key={qr.id} onClick={() => sendAudioReply(qr)} disabled={sending}
+                              title="Sesli mesajı gönder"
+                              className="text-xs px-3 py-1.5 rounded-full transition-all bg-emerald-500/10 dark:bg-emerald-500/15 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 disabled:opacity-50">
+                              🎤 {qr.title}
+                            </button>
+                          ) : (
+                            <button key={qr.id} onClick={() => { setReplyText(qr.content); setShowQuickReplies(false); }}
+                              className="text-xs px-3 py-1.5 rounded-full transition-all bg-indigo-500/10 dark:bg-indigo-500/15 hover:bg-indigo-500/20 dark:hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                              {qr.title}
+                            </button>
+                          )
                         ))}
                       </div>
                     )}

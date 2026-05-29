@@ -98,10 +98,12 @@ class Message(Base):
     message_type        = Column(String(20), default="text")
     platform            = Column(String(20))
     external_id         = Column(String(500), nullable=True)
+    quick_reply_id      = Column(Integer, ForeignKey("quick_replies.id"), nullable=True)
     is_read             = Column(Boolean, default=False)
     timestamp           = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     conversation        = relationship("Conversation", back_populates="messages")
+    quick_reply         = relationship("QuickReply", foreign_keys=[quick_reply_id])
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
 class ActivityLog(Base):
@@ -141,7 +143,11 @@ class QuickReply(Base):
     __tablename__ = "quick_replies"
     id                  = Column(Integer, primary_key=True, index=True)
     title               = Column(String(100))
-    content             = Column(Text)
+    content             = Column(Text, nullable=True)
+    audio_data          = Column(LargeBinary, nullable=True)
+    audio_mime          = Column(String(50), nullable=True)
+    audio_filename      = Column(String(255), nullable=True)
+    audio_size          = Column(Integer, nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
