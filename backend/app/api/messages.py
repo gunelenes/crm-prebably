@@ -1,7 +1,8 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from app.database import get_db
 from app.models import Contact, Conversation, Message, User, QuickReply
 from app.auth import get_current_user, decode_token
@@ -12,11 +13,59 @@ from datetime import datetime, timedelta
 router = APIRouter()
 
 @router.get("/conversations")
-def get_conversations(limit: int = 50, offset: int = 0, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, q: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
-    conversations = db.query(Conversation).options(
+    base_query = db.query(Conversation).options(
         joinedload(Conversation.contact).joinedload(Contact.status)
-    ).order_by(Conversation.last_message_at.desc()).limit(limit).offset(offset).all()
+    )
+
+    # Arama: kişi adı / ad-soyad / telefon / e-posta
+    if q:
+        like = f"%{q.strip()}%"
+        base_query = base_query.join(Contact, Conversation.contact_id == Contact.id).filter(
+            or_(
+                Contact.name.ilike(like),
+                Contact.full_name.ilike(like),
+                Contact.phone.ilike(like),
+                Contact.email.ilike(like),
+            )
+        )
+
+    # "Cevap bekliyor" filtresi (server-side) — son mesajı inbound + dismiss edilmemiş.
+    # contacts.py search_contacts'taki desenin aynısı, sadece Conversation.id seçiyor.
+    if waiting_for_reply is not None:
+        max_msg_subq = (
+            db.query(
+                Message.conversation_id.label("conv_id"),
+                func.max(Message.id).label("max_id"),
+            )
+            .group_by(Message.conversation_id)
+            .subquery()
+        )
+        waiting_conv_ids = (
+            db.query(Conversation.id)
+            .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
+            .join(Message, Message.id == max_msg_subq.c.max_id)
+            .filter(
+                Message.direction == "inbound",
+                or_(
+                    Conversation.reply_dismissed_at.is_(None),
+                    Conversation.reply_dismissed_at < Message.timestamp,
+                ),
+            )
+            .distinct()
+        )
+        if waiting_for_reply:
+            base_query = base_query.filter(Conversation.id.in_(waiting_conv_ids))
+        else:
+            base_query = base_query.filter(~Conversation.id.in_(waiting_conv_ids))
+
+    conversations = (
+        base_query.order_by(Conversation.last_message_at.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
 
     # Son mesajları tek sorguda çek (N+1 problemi çözümü)
     conv_ids = [conv.id for conv in conversations]

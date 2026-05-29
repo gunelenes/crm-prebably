@@ -25,18 +25,30 @@ export default function MessagesPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [convLimit, setConvLimit] = useState(50);
+  const [waitingFilter, setWaitingFilter] = useState(false);
+  const [search, setSearch] = useState("");
 
   const fetchTimeoutRef = useRef(null);
   const selectedRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const convLimitRef = useRef(50);
+  const waitingFilterRef = useRef(false);
+  const searchRef = useRef("");
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => { convLimitRef.current = convLimit; }, [convLimit]);
+  useEffect(() => { waitingFilterRef.current = waitingFilter; }, [waitingFilter]);
+  useEffect(() => { searchRef.current = search; }, [search]);
 
   const fetchConversations = () => {
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await api.get("/conversations");
+        const params = { limit: convLimitRef.current };
+        if (waitingFilterRef.current) params.waiting_for_reply = true;
+        if (searchRef.current.trim()) params.q = searchRef.current.trim();
+        const res = await api.get("/conversations", { params });
         setConversations(res.data);
       } catch (err) { console.error(err); }
       finally { setInitialLoad(false); }
@@ -82,6 +94,12 @@ export default function MessagesPage() {
     const reminderInterval = setInterval(checkReminders, 60000);
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
   }, []);
+
+  // Sayfa boyutu, "cevap bekliyor" filtresi veya arama değişince yeniden çek.
+  useEffect(() => {
+    fetchConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convLimit, waitingFilter, search]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -216,9 +234,10 @@ export default function MessagesPage() {
     acc[s.id] = conversations.filter((c) => c.contact.status_id === s.id).length;
     return acc;
   }, {});
-  const filteredConversations = activeFilter
+  const filteredConversations = (!waitingFilter && activeFilter)
     ? conversations.filter((c) => c.contact.status_id === activeFilter)
     : conversations;
+  const waitingCount = conversations.filter((c) => c.waiting_for_reply).length;
 
   return (
     <div className="flex flex-1 overflow-hidden flex-col">
@@ -238,16 +257,22 @@ export default function MessagesPage() {
       )}
 
       <div className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 px-4 py-3 flex items-center gap-2 overflow-x-auto">
-        <button onClick={() => setActiveFilter(null)}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!activeFilter
+        <button onClick={() => { setActiveFilter(null); setWaitingFilter(false); }}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${(!activeFilter && !waitingFilter)
             ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30"
             : "bg-white/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 border border-slate-200/60 dark:border-white/10"}`}>
           Tümü ({conversations.length})
         </button>
+        <button onClick={() => { setActiveFilter(null); setWaitingFilter(!waitingFilter); }}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${waitingFilter
+            ? "bg-amber-500 text-white shadow-md shadow-amber-500/30"
+            : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"}`}>
+          ⏳ Cevap bekliyor ({waitingFilter ? conversations.length : waitingCount})
+        </button>
         {statuses.filter((s) => s.is_active).map((s) => {
-          const isActive = activeFilter === s.id;
+          const isActive = !waitingFilter && activeFilter === s.id;
           return (
-            <button key={s.id} onClick={() => setActiveFilter(isActive ? null : s.id)}
+            <button key={s.id} onClick={() => { setWaitingFilter(false); setActiveFilter(isActive ? null : s.id); }}
               className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isActive ? "text-white shadow-md" : "text-white/80 hover:text-white"}`}
               style={{
                 backgroundColor: s.color,
@@ -273,12 +298,33 @@ export default function MessagesPage() {
               <span className={syncing ? "animate-spin inline-block" : ""}>🔄</span>
             </button>
           </div>
+          <div className="px-3 py-2 border-b border-slate-200/60 dark:border-white/10">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-sm">🔍</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="İsim, telefon veya e-posta ara"
+                className="w-full rounded-xl pl-8 pr-8 py-1.5 text-sm transition-all
+                  bg-white/60 dark:bg-slate-800/50 backdrop-blur
+                  border border-slate-200/60 dark:border-white/10
+                  focus:bg-white dark:focus:bg-slate-800
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500
+                  text-slate-800 dark:text-slate-100" />
+              {search && (
+                <button onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm px-1">×</button>
+              )}
+            </div>
+          </div>
           {syncing && (
             <div className="h-0.5 bg-gradient-to-r from-indigo-300 via-violet-500 to-indigo-300 animate-pulse" />
           )}
           <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
             {initialLoad && filteredConversations.length === 0 ? (
               <ConversationSkeleton count={8} />
+            ) : filteredConversations.length === 0 ? (
+              <div className="text-center text-slate-400 dark:text-slate-500 py-12 text-sm">Sonuç bulunamadı</div>
             ) : filteredConversations.map((conv) => {
               const isSelected = selected?.id === conv.id;
               return (
@@ -318,6 +364,12 @@ export default function MessagesPage() {
                 </div>
               );
             })}
+            {!initialLoad && conversations.length >= convLimit && (
+              <button onClick={() => setConvLimit((n) => n + 50)}
+                className="w-full mt-1 py-2 rounded-xl text-xs font-medium text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all">
+                Daha fazla yükle
+              </button>
+            )}
           </div>
         </div>
 
