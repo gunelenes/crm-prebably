@@ -5,6 +5,9 @@ import { avatarUrl, formatTime, platformIcon } from "../utils";
 import { ConversationSkeleton, MessageSkeleton } from "../components/Skeletons";
 import ContactPanel from "../components/ContactPanel";
 
+// Gelen medya auth gerektirir; <img>/<audio> header gönderemediği için token query param ile.
+const mediaUrl = (id) => `${API}/messages/${id}/media?token=${localStorage.getItem("token") || ""}`;
+
 export default function MessagesPage() {
   const [conversations, setConversations] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -343,12 +346,22 @@ export default function MessagesPage() {
                     <div className={`max-w-sm px-4 py-2.5 text-sm ${msg.direction === "outbound"
                       ? "bg-gradient-to-br from-indigo-500 to-violet-500 text-white rounded-2xl rounded-br-md shadow-lg shadow-indigo-500/30"
                       : "bg-white/80 dark:bg-slate-800/60 backdrop-blur text-slate-800 dark:text-slate-100 border border-slate-200/60 dark:border-white/10 rounded-2xl rounded-bl-md shadow-sm"}`}>
-                      {msg.message_type === "audio" && msg.quick_reply_id ? (
+                      {msg.message_type === "image" ? (
+                        <a href={mediaUrl(msg.id)} target="_blank" rel="noreferrer" className="block">
+                          <img src={mediaUrl(msg.id)} alt="görsel"
+                            className="rounded-lg max-w-[240px] max-h-[280px] object-cover" />
+                        </a>
+                      ) : msg.message_type === "audio" && msg.quick_reply_id ? (
                         <div className="leading-relaxed">
                           <div className="mb-1">{msg.content}</div>
                           {!msg._pending && (
                             <audio controls src={`${API}/quick-replies/${msg.quick_reply_id}/audio`} className="h-8 max-w-full" />
                           )}
+                        </div>
+                      ) : msg.message_type === "audio" ? (
+                        <div className="leading-relaxed">
+                          <div className="mb-1">{msg.content}</div>
+                          <audio controls src={mediaUrl(msg.id)} className="h-8 max-w-full" />
                         </div>
                       ) : (
                         <div className="leading-relaxed">{msg.content}</div>

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Contact, Conversation, Message, User, QuickReply
-from app.auth import get_current_user
+from app.auth import get_current_user, decode_token
 from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL
 from app.utils import iso_utc
 from datetime import datetime, timedelta
@@ -150,6 +151,24 @@ async def reply_message(conversation_id: int, request: Request, current_user: Us
         return {"status": "ok"}
 
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
+
+# Gelen medyayı sunar. Token query param ile gelir çünkü <img>/<audio> etiketleri
+# Authorization header gönderemez. Müşteri medyası olduğu için public DEĞİL.
+@router.get("/messages/{message_id}/media")
+def get_message_media(message_id: int, token: str = "", db: Session = Depends(get_db)):
+    try:
+        decode_token(token)
+    except Exception:
+        raise HTTPException(401, "Yetkisiz")
+    m = db.query(Message).filter(Message.id == message_id).first()
+    if not m or not m.media_data:
+        raise HTTPException(404, "Medya yok")
+    return Response(
+        content=bytes(m.media_data),
+        media_type=m.media_mime or "application/octet-stream",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
 
 @router.post("/conversations/{conversation_id}/reply-audio")
 async def reply_audio(conversation_id: int, request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

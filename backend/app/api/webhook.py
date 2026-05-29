@@ -18,7 +18,20 @@ async def get_instagram_username(sender_id: str) -> str:
     except:
         return f"Instagram Kullanici {sender_id[-6:]}"
 
-async def save_message(db, sender_id, text, mid, platform):
+# Gelen medya için ring buffer: her türden en fazla bu kadar dosya saklanır.
+MEDIA_LIMIT = 50
+PREVIEW = {"image": "📷 Görsel", "audio": "🎤 Sesli mesaj"}
+PLACEHOLDER = {
+    "image": "📷 Görsel (süresi doldu)",
+    "audio": "🎤 Sesli mesaj (süresi doldu)",
+}
+
+
+async def _ensure_contact_conv(db, sender_id, platform, preview_text):
+    """Kişi + konuşmayı bulur/oluşturur; (contact, conversation, is_new) döner.
+
+    İlk mesaj statüsü atama ve aktivite logu mantığını içerir.
+    """
     from app.models import ActivityLog, Status
 
     ilk_mesaj_status = db.query(Status).filter(Status.name == "İlk Mesaj").first()
@@ -38,12 +51,11 @@ async def save_message(db, sender_id, text, mid, platform):
         db.add(contact)
         db.flush()
 
-        # Aktivite logu — ilk mesaj
         log = ActivityLog(
             contact_id=contact.id,
             type="first_message",
             title="🎉 İlk mesaj gönderildi",
-            description=f"Platform: {platform} | Mesaj: {text[:100]}",
+            description=f"Platform: {platform} | Mesaj: {(preview_text or '')[:100]}",
             new_status_id=ilk_mesaj_status.id if ilk_mesaj_status else None,
             created_at=datetime.utcnow()
         )
@@ -74,10 +86,32 @@ async def save_message(db, sender_id, text, mid, platform):
         db.add(conversation)
         db.flush()
 
+    return contact, conversation, is_new
+
+
+async def _emit_new_message(platform, sender_id, conversation_id, text, is_new):
+    try:
+        from app.main import sio
+        await sio.emit("new_message", {
+            "platform": platform,
+            "sender_id": sender_id,
+            "conversation_id": conversation_id,
+            "text": text,
+            "direction": "inbound",
+            "is_new": is_new,
+        })
+    except Exception:
+        pass
+
+
+async def save_message(db, sender_id, text, mid, platform):
+    contact, conversation, is_new = await _ensure_contact_conv(db, sender_id, platform, text)
+
     new_message = Message(
         conversation_id=conversation.id,
         direction="inbound",
         content=text,
+        message_type="text",
         platform=platform,
         external_id=mid,
         is_read=False,
@@ -89,18 +123,89 @@ async def save_message(db, sender_id, text, mid, platform):
     db.commit()
     print(f"Mesaj kaydedildi: {sender_id} → {text} (yeni kullanıcı: {is_new})")
 
+    await _emit_new_message(platform, sender_id, conversation.id, text, is_new)
+
+
+def _evict_old_media(db, media_kind):
+    """Bir türden en yeni MEDIA_LIMIT dışındaki dosyaları siler (ring buffer).
+
+    Mesaj satırı kalır ama içeriği placeholder'a döner ve tipi 'text' yapılır ki
+    arayüz oynatıcı yüklemeye çalışmasın.
+    """
+    old = db.query(Message).filter(
+        Message.message_type == media_kind,
+        Message.direction == "inbound",
+        Message.media_data.isnot(None),
+    ).order_by(Message.id.desc()).offset(MEDIA_LIMIT).all()
+    for m in old:
+        m.media_data = None
+        m.media_size = None
+        m.media_mime = None
+        m.message_type = "text"
+        m.content = PLACEHOLDER.get(media_kind, "(süresi doldu)")
+
+
+async def _download_attachment(url):
+    from app import main as app_main
     try:
-        from app.main import sio
-        await sio.emit("new_message", {
-            "platform": platform,
-            "sender_id": sender_id,
-            "conversation_id": conversation.id,
-            "text": text,
-            "direction": "inbound",
-            "is_new": is_new
-        })
-    except:
-        pass
+        r = await app_main.http_client.get(url, follow_redirects=True)
+        if r.status_code == 200 and r.content:
+            mime = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+            return r.content, mime
+        print("Medya indirilemedi, durum:", r.status_code)
+    except Exception as e:
+        print("Medya indirme hatası:", e)
+    return None, None
+
+
+async def save_attachments(db, sender_id, attachments, mid, platform):
+    for att in attachments or []:
+        att_type = att.get("type")
+        url = (att.get("payload") or {}).get("url")
+        kind = att_type if att_type in ("image", "audio") else None
+
+        preview = PREVIEW.get(kind, f"📎 İçerik ({att_type})")
+        contact, conversation, is_new = await _ensure_contact_conv(db, sender_id, platform, preview)
+
+        media_bytes = media_mime = None
+        if kind and url:
+            media_bytes, media_mime = await _download_attachment(url)
+
+        if kind and media_bytes:
+            content = PREVIEW[kind]
+            msg_type = kind
+        elif kind:
+            content = f"{PREVIEW[kind]} (alınamadı)"
+            msg_type = "text"
+        else:
+            content = f"📎 Desteklenmeyen içerik ({att_type})"
+            msg_type = "text"
+
+        msg = Message(
+            conversation_id=conversation.id,
+            direction="inbound",
+            content=content,
+            message_type=msg_type,
+            platform=platform,
+            external_id=mid,
+            media_data=media_bytes if msg_type == kind else None,
+            media_mime=media_mime if msg_type == kind else None,
+            media_size=len(media_bytes) if (media_bytes and msg_type == kind) else None,
+            is_read=False,
+            timestamp=datetime.utcnow(),
+        )
+        db.add(msg)
+        conversation.unread_count += 1
+        conversation.last_message_at = datetime.utcnow()
+
+        if msg_type in ("image", "audio"):
+            db.flush()  # id atansın ki eviction sıralaması doğru olsun
+            _evict_old_media(db, msg_type)
+
+        db.commit()
+        print(f"Medya kaydedildi: {sender_id} → {content}")
+
+        await _emit_new_message(platform, sender_id, conversation.id, content, is_new)
 
 @router.get("/webhook")
 def verify_webhook(request: Request):
@@ -124,13 +229,17 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                 sender_id = messaging.get("sender", {}).get("id")
                 message = messaging.get("message", {})
                 text = message.get("text")
+                attachments = message.get("attachments")
+                mid = message.get("mid")
 
                 # Kendi gönderdiğimiz mesajları atla
                 if sender_id == our_id:
                     continue
 
-                if text and sender_id:
-                    await save_message(db, sender_id, text, message.get("mid"), "instagram")
+                if attachments and sender_id:
+                    await save_attachments(db, sender_id, attachments, mid, "instagram")
+                elif text and sender_id:
+                    await save_message(db, sender_id, text, mid, "instagram")
 
             for change in entry.get("changes", []):
                 if change.get("field") == "messages":
@@ -139,13 +248,17 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     our_id_change = value.get("recipient", {}).get("id")
                     message = value.get("message", {})
                     text = message.get("text")
+                    attachments = message.get("attachments")
+                    mid = message.get("mid")
 
                     # Kendi gönderdiğimiz mesajları atla
                     if sender_id == our_id_change:
                         continue
 
-                    if text and sender_id:
-                        await save_message(db, sender_id, text, message.get("mid"), "instagram")
+                    if attachments and sender_id:
+                        await save_attachments(db, sender_id, attachments, mid, "instagram")
+                    elif text and sender_id:
+                        await save_message(db, sender_id, text, mid, "instagram")
 
     return {"status": "ok"}
 
