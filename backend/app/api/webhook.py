@@ -25,6 +25,10 @@ PLACEHOLDER = {
     "image": "📷 Görsel (süresi doldu)",
     "audio": "🎤 Sesli mesaj (süresi doldu)",
 }
+# Tek gösterimlik (view-once) mesaj: Instagram içeriği vermez (payload/URL yok),
+# sadece geldiğini belirtebiliriz.
+EPHEMERAL_TEXT = "👁️ Tek gösterimlik mesaj geldi (içeriği görüntülenemiyor)"
+UNSUPPORTED_TEXT = "⚠️ Desteklenmeyen mesaj türü geldi"
 
 
 async def _ensure_contact_conv(db, sender_id, platform, preview_text):
@@ -164,7 +168,10 @@ async def save_attachments(db, sender_id, attachments, mid, platform):
         url = (att.get("payload") or {}).get("url")
         kind = att_type if att_type in ("image", "audio") else None
 
-        preview = PREVIEW.get(kind, f"📎 İçerik ({att_type})")
+        if att_type == "ephemeral":
+            preview = EPHEMERAL_TEXT
+        else:
+            preview = PREVIEW.get(kind, f"📎 İçerik ({att_type})")
         contact, conversation, is_new = await _ensure_contact_conv(db, sender_id, platform, preview)
 
         media_bytes = media_mime = None
@@ -176,6 +183,9 @@ async def save_attachments(db, sender_id, attachments, mid, platform):
             msg_type = kind
         elif kind:
             content = f"{PREVIEW[kind]} (alınamadı)"
+            msg_type = "text"
+        elif att_type == "ephemeral":
+            content = EPHEMERAL_TEXT
             msg_type = "text"
         else:
             content = f"📎 Desteklenmeyen içerik ({att_type})"
@@ -230,6 +240,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                 message = messaging.get("message", {})
                 text = message.get("text")
                 attachments = message.get("attachments")
+                is_unsupported = message.get("is_unsupported")
                 mid = message.get("mid")
 
                 # Kendi gönderdiğimiz mesajları atla
@@ -240,6 +251,8 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     await save_attachments(db, sender_id, attachments, mid, "instagram")
                 elif text and sender_id:
                     await save_message(db, sender_id, text, mid, "instagram")
+                elif is_unsupported and sender_id:
+                    await save_message(db, sender_id, UNSUPPORTED_TEXT, mid, "instagram")
 
             for change in entry.get("changes", []):
                 if change.get("field") == "messages":
@@ -249,6 +262,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     message = value.get("message", {})
                     text = message.get("text")
                     attachments = message.get("attachments")
+                    is_unsupported = message.get("is_unsupported")
                     mid = message.get("mid")
 
                     # Kendi gönderdiğimiz mesajları atla
@@ -259,6 +273,8 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         await save_attachments(db, sender_id, attachments, mid, "instagram")
                     elif text and sender_id:
                         await save_message(db, sender_id, text, mid, "instagram")
+                    elif is_unsupported and sender_id:
+                        await save_message(db, sender_id, UNSUPPORTED_TEXT, mid, "instagram")
 
     return {"status": "ok"}
 
