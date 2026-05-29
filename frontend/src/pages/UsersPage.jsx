@@ -53,6 +53,17 @@ export default function UsersPage() {
     load();
   };
 
+  const editEmail = async (u) => {
+    const next = window.prompt(`E-posta (${u.username} için, boş bırakılırsa silinir):`, u.email || "");
+    if (next === null) return; // iptal
+    try {
+      await api.put(`/users/${u.id}`, { email: next.trim() });
+      load();
+    } catch (err) {
+      alert("Hata: " + (err.response?.data?.detail || "Bilinmeyen"));
+    }
+  };
+
   const resetPassword = async (u) => {
     const newPw = window.prompt(`Yeni parola (${u.username} için, en az 6 karakter):`);
     if (!newPw) return;
@@ -130,6 +141,10 @@ export default function UsersPage() {
                 <button onClick={() => changeRole(u, u.role === "admin" ? "user" : "admin")}
                   className="text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10 rounded-lg px-3 py-1 text-xs transition-colors">
                   {u.role === "admin" ? "Admin'liği kaldır" : "Admin yap"}
+                </button>
+                <button onClick={() => editEmail(u)}
+                  className="text-sky-600 dark:text-sky-300 hover:bg-sky-500/10 rounded-lg px-3 py-1 text-xs transition-colors">
+                  E-posta düzenle
                 </button>
                 <button onClick={() => resetPassword(u)} disabled={resetting === u.id}
                   className="text-orange-500 dark:text-orange-300 hover:bg-orange-500/10 rounded-lg px-3 py-1 text-xs transition-colors">
