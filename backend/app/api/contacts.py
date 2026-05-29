@@ -56,7 +56,8 @@ def search_contacts(
         base_query = base_query.filter(
             (Contact.name.ilike(like)) |
             (Contact.full_name.ilike(like)) |
-            (Contact.phone.ilike(like))
+            (Contact.phone.ilike(like)) |
+            (Contact.email.ilike(like))
         )
     if status_id:
         base_query = base_query.filter(Contact.status_id == status_id)
@@ -147,6 +148,7 @@ def search_contacts(
             "name": contact.name,
             "full_name": contact.full_name,
             "phone": contact.phone,
+            "email": contact.email,
             "platform": contact.platform,
             "assigned_to": contact.assigned_to,
             "purchase_potential": contact.purchase_potential,
@@ -379,6 +381,7 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "name": contact.name,
         "full_name": contact.full_name,
         "phone": contact.phone,
+        "email": contact.email,
         "platform": contact.platform,
         "external_id": contact.external_id,
         "description": contact.description,
@@ -404,7 +407,7 @@ def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(ge
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
-    fields = ["full_name", "phone", "description", "knows_us",
+    fields = ["full_name", "phone", "email", "description", "knows_us",
               "previous_trainings", "purchase_potential",
               "had_training", "purchased", "reason_not_purchased",
               "sector_id", "training_set_id", "assigned_to_user_id"]

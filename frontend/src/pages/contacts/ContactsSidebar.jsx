@@ -28,7 +28,7 @@ export default function ContactsSidebar({
           <input
             value={filters.q}
             onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-            placeholder="İsim, ad-soyad veya telefon ara"
+            placeholder="İsim, ad-soyad, telefon veya e-posta ara"
             className="w-full rounded-xl pl-9 pr-9 py-2 text-sm transition-all
               bg-white/60 dark:bg-slate-800/50 backdrop-blur
               border border-slate-200/60 dark:border-white/10
@@ -92,6 +92,7 @@ export default function ContactsSidebar({
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(c.last_message_at)}</span>
                   </div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.phone || c.last_message_preview || "—"}</div>
+                  {c.email && <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">✉️ {c.email}</div>}
                   <div className="flex flex-wrap items-center gap-1 mt-1">
                     {c.status && (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] text-white font-medium" style={{ backgroundColor: c.status.color }}>

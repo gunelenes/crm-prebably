@@ -132,6 +132,7 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
             {[
               { key: "full_name", label: "Ad Soyad" },
               { key: "phone", label: "Telefon" },
+              { key: "email", label: "E-posta" },
             ].map(({ key, label }) => (
               <div key={key}>
                 <label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">{label}</label>

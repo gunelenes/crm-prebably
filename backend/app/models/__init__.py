@@ -52,6 +52,7 @@ class Contact(Base):
     name                  = Column(String(100))
     full_name             = Column(String(100), nullable=True)
     phone                 = Column(String(20), nullable=True)
+    email                 = Column(String(255), nullable=True)
     description           = Column(Text, nullable=True)
     knows_us              = Column(Boolean, default=False)
     previous_trainings    = Column(Text, nullable=True)

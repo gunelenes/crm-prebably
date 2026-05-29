@@ -67,6 +67,10 @@ export default function ContactProfileTab({ profile, sectors, trainingSets, cont
               {editing ? <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} />
                 : <div className="text-sm text-slate-800 dark:text-slate-100">{text("phone")}</div>}
             </Field>
+            <Field label="E-posta">
+              {editing ? <input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputCls} />
+                : <div className="text-sm text-slate-800 dark:text-slate-100">{text("email")}</div>}
+            </Field>
             <Field label="Sorumlu Danışman">
               {editing
                 ? <UserSelect value={form.assigned_to_user_id} onChange={(v) => setForm({ ...form, assigned_to_user_id: v })} placeholder="Seç" />
