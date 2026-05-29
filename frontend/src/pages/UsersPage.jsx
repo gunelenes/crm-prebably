@@ -14,6 +14,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
   const [saving, setSaving] = useState(false);
@@ -34,8 +35,8 @@ export default function UsersPage() {
     }
     setSaving(true);
     try {
-      await api.post("/users", { username, password, full_name: fullName, role });
-      setUsername(""); setFullName(""); setPassword(""); setRole("user");
+      await api.post("/users", { username, password, full_name: fullName, email, role });
+      setUsername(""); setFullName(""); setEmail(""); setPassword(""); setRole("user");
       load();
     } catch (err) {
       setError(err.response?.data?.detail || "Oluşturulamadı");
@@ -79,6 +80,8 @@ export default function UsersPage() {
               className={inputCls} />
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ad Soyad"
               className={inputCls} />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-posta (opsiyonel)"
+              className={inputCls} />
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Parola (min 6)"
               className={inputCls} />
             <select value={role} onChange={(e) => setRole(e.target.value)}
@@ -111,6 +114,7 @@ export default function UsersPage() {
               <div className="flex-1">
                 <div className="font-medium text-slate-800 dark:text-slate-100 text-sm">{u.full_name || u.username}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">@{u.username}</div>
+                {u.email && <div className="text-xs text-slate-400 dark:text-slate-500">✉️ {u.email}</div>}
                 <div className="mt-1 flex items-center gap-2">
                   <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${u.role === "admin"
                     ? "bg-gradient-to-r from-indigo-500/20 to-violet-500/20 text-indigo-700 dark:text-indigo-300"

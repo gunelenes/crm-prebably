@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,18 @@ from app.utils import iso_utc
 
 router = APIRouter()
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_email(raw):
+    """Boş/None ise None döner; doluysa doğrular ve küçük harfe çevirir."""
+    email = (raw or "").strip().lower()
+    if not email:
+        return None
+    if not EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Geçersiz e-posta adresi")
+    return email
+
 
 @router.get("/users/active")
 def list_active_users(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -17,7 +31,7 @@ def list_active_users(_: User = Depends(get_current_user), db: Session = Depends
              .order_by(User.full_name.asc(), User.username.asc())
              .all())
     return [
-        {"id": u.id, "username": u.username, "full_name": u.full_name, "role": u.role}
+        {"id": u.id, "username": u.username, "full_name": u.full_name, "email": u.email, "role": u.role}
         for u in users
     ]
 
@@ -30,6 +44,7 @@ def list_users(_: User = Depends(require_admin), db: Session = Depends(get_db)):
             "id": u.id,
             "username": u.username,
             "full_name": u.full_name,
+            "email": u.email,
             "role": u.role,
             "is_active": u.is_active,
             "created_at": iso_utc(u.created_at),
@@ -47,6 +62,7 @@ def create_user(
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
     full_name = (body.get("full_name") or "").strip() or None
+    email = _normalize_email(body.get("email"))
     role = body.get("role") or "user"
     if not username or not password:
         raise HTTPException(status_code=400, detail="Kullanıcı adı ve parola zorunlu")
@@ -54,10 +70,13 @@ def create_user(
         raise HTTPException(status_code=400, detail="Geçersiz rol")
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten kullanılıyor")
+    if email and db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Bu e-posta zaten kullanılıyor")
     user = User(
         username=username,
         password_hash=hash_password(password),
         full_name=full_name,
+        email=email,
         role=role,
         is_active=True,
     )
@@ -78,6 +97,11 @@ def update_user(
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
     if "full_name" in body:
         user.full_name = body["full_name"]
+    if "email" in body:
+        email = _normalize_email(body.get("email"))
+        if email and db.query(User).filter(User.email == email, User.id != user_id).first():
+            raise HTTPException(status_code=400, detail="Bu e-posta zaten kullanılıyor")
+        user.email = email
     if "role" in body:
         if body["role"] not in ("admin", "user"):
             raise HTTPException(status_code=400, detail="Geçersiz rol")

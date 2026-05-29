@@ -28,6 +28,7 @@ def login(
             "id": user.id,
             "username": user.username,
             "full_name": user.full_name,
+            "email": user.email,
             "role": user.role,
         },
     }
@@ -39,6 +40,7 @@ def me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "username": current_user.username,
         "full_name": current_user.full_name,
+        "email": current_user.email,
         "role": current_user.role,
         "is_active": current_user.is_active,
     }
