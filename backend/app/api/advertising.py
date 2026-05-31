@@ -17,7 +17,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AdAccount, AdSpend, Registration, Contact, User
+from app.models import AdAccount, AdSpend, Registration, Contact, Payment, User
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
@@ -749,6 +749,25 @@ def analytics_summary(
         cpa_note = ("Etiketli 'wix_kayit' hesabı yok; CPA = TÜM hesapların harcaması / toplam kayıt. "
                     "Daha doğru sonuç için META_AD_ACCOUNTS'ta hesabı 'wix_kayit' olarak işaretleyin.")
 
+    # --- ROAS (reklam → kayıt → ödeme) ---
+    # Dönemde kaydolup CRM kişisine eşleşmiş kişilerin gelir ödemeleri
+    reg_contact_subq = (db.query(Registration.matched_contact_id)
+                        .filter(reg_dt_col >= from_dt, reg_dt_col <= to_dt,
+                                Registration.matched_contact_id.isnot(None)))
+    rev_q = (db.query(Payment)
+             .filter(Payment.type == "income",
+                     Payment.contact_id.in_(reg_contact_subq),
+                     Payment.paid_at >= from_dt))
+    revenue = float(rev_q.with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0)
+    paying_customers = int(rev_q.with_entities(func.count(func.distinct(Payment.contact_id))).scalar() or 0)
+
+    spend_basis = wix_spend if wix_spend > 0 else total_spend  # CPA ile aynı temel
+    roas = (revenue / spend_basis) if spend_basis else None
+    conversion_rate = (paying_customers / matched_reg) if matched_reg else None  # oran (0-1)
+    avg_deal = (revenue / paying_customers) if paying_customers else None
+    roas_note = ("ROAS = bu dönemde kaydolan kişilerin gelir ödemeleri / reklam harcaması. "
+                 "Yalnızca Wix kaydı→ödeme hunisini kapsar; DM'den gelen satışlar dahil değildir.")
+
     return {
         "range": {"from": from_d.isoformat(), "to": to_d.isoformat()},
         "overall": {
@@ -759,6 +778,12 @@ def analytics_summary(
             "matched_registrations": int(matched_reg),
             "cpa": cpa,
             "cpa_note": cpa_note,
+            "revenue": revenue,
+            "roas": roas,
+            "paying_customers": paying_customers,
+            "conversion_rate": conversion_rate,
+            "avg_deal": avg_deal,
+            "roas_note": roas_note,
             "multi_currency": multi_currency,
             "by_currency": by_currency,
         },

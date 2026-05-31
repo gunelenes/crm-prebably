@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../api";
 import AdsKpiCards from "./AdsKpiCards";
+import AdsRoasCards from "./AdsRoasCards";
 import AdsChannelCards from "./AdsChannelCards";
 import AdAccountCards from "./AdAccountCards";
 import AdSpendTable from "./AdSpendTable";
@@ -142,6 +143,7 @@ export default function AdvertisingPage() {
         </div>
 
         <AdsKpiCards overall={summary?.overall} />
+        <AdsRoasCards overall={summary?.overall} />
         <AdsChannelCards byChannel={summary?.by_channel} />
         <AdAccountCards byAccount={summary?.by_account} />
 
