@@ -1,13 +1,14 @@
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, or_
+from datetime import datetime, timedelta, date
+from fastapi import APIRouter, Depends, Query
+from typing import Optional
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.models import (
     User, Status, Contact, Conversation, Message,
-    Reminder, ActivityLog, Payment,
+    Reminder, ActivityLog, Payment, AdSpend, AdAccount,
 )
 from app.utils import iso_utc
 
@@ -15,6 +16,12 @@ router = APIRouter()
 
 # İstanbul UTC+3 (DST yok). "Bugün" yerel saatte 00:00 → UTC 03:00.
 TR_OFFSET_HOURS = 3
+MAX_TIMESERIES_DAYS = 366  # zaman serisi aralık üst sınırı
+
+
+def _tr_day(dt: datetime) -> date:
+    """Naive UTC datetime'i Türkiye yerel gününe çevirir."""
+    return (dt + timedelta(hours=TR_OFFSET_HOURS)).date()
 
 
 def _today_start_utc() -> datetime:
@@ -154,4 +161,117 @@ def dashboard_summary(
         "this_month": this_month,
         "status_distribution": status_distribution,
         "recent_activity": recent_activity,
+    }
+
+
+def _parse_date(s):
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(str(s)[:10])
+    except ValueError:
+        return None
+
+
+@router.get("/dashboard/timeseries")
+def dashboard_timeseries(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Gün gün: yeni kişi, gelen/giden mesaj, gelir, ödeme gideri, reklam harcaması,
+    toplam gider (ödeme + reklam) ve net. Tarihler Türkiye yerel gününe göre gruplanır."""
+    to_d = _parse_date(to) or _tr_day(datetime.utcnow())
+    from_d = _parse_date(from_) or (to_d - timedelta(days=29))
+    if from_d > to_d:
+        from_d, to_d = to_d, from_d
+    if (to_d - from_d).days > MAX_TIMESERIES_DAYS:
+        from_d = to_d - timedelta(days=MAX_TIMESERIES_DAYS)
+
+    # TR günlerini kapsayan UTC penceresi (TR 00:00 = UTC -3saat)
+    start_utc = datetime.combine(from_d, datetime.min.time()) - timedelta(hours=TR_OFFSET_HOURS)
+    end_utc = datetime.combine(to_d, datetime.max.time()) - timedelta(hours=TR_OFFSET_HOURS)
+
+    days = {}
+    d = from_d
+    while d <= to_d:
+        days[d] = {"new_contacts": 0, "incoming": 0, "outgoing": 0,
+                   "payment_expense": 0.0, "ad_spend": 0.0, "income": 0.0}
+        d += timedelta(days=1)
+
+    # Yeni kişiler
+    for (created,) in db.query(Contact.created_at).filter(
+            Contact.created_at >= start_utc, Contact.created_at <= end_utc):
+        if created:
+            k = _tr_day(created)
+            if k in days:
+                days[k]["new_contacts"] += 1
+
+    # Mesajlar (gelen/giden)
+    for ts, direction in db.query(Message.timestamp, Message.direction).filter(
+            Message.timestamp >= start_utc, Message.timestamp <= end_utc):
+        if ts:
+            k = _tr_day(ts)
+            if k in days:
+                if direction == "inbound":
+                    days[k]["incoming"] += 1
+                elif direction == "outbound":
+                    days[k]["outgoing"] += 1
+
+    # Ödemeler (gelir / gider)
+    for ptype, amount, paid_at in db.query(Payment.type, Payment.amount, Payment.paid_at).filter(
+            Payment.paid_at >= start_utc, Payment.paid_at <= end_utc):
+        if paid_at:
+            k = _tr_day(paid_at)
+            if k in days:
+                amt = float(amount or 0)
+                if ptype == "income":
+                    days[k]["income"] += amt
+                elif ptype == "expense":
+                    days[k]["payment_expense"] += amt
+
+    # Reklam harcaması (sadece Parametreler'de tanımlı hesaplar; AdSpend.date zaten gün)
+    ad_rows = (db.query(AdSpend.date, func.coalesce(func.sum(AdSpend.spend), 0))
+               .filter(AdSpend.date >= from_d, AdSpend.date <= to_d,
+                       AdSpend.account_act_id.in_(select(AdAccount.act_id)))
+               .group_by(AdSpend.date).all())
+    for dt_, s in ad_rows:
+        if dt_ in days:
+            days[dt_]["ad_spend"] = float(s or 0)
+
+    series = []
+    totals = {"new_contacts": 0, "incoming": 0, "outgoing": 0,
+              "payment_expense": 0.0, "ad_spend": 0.0, "income": 0.0,
+              "total_expense": 0.0, "net": 0.0}
+    for d in sorted(days):
+        m = days[d]
+        total_expense = round(m["payment_expense"] + m["ad_spend"], 2)
+        net = round(m["income"] - total_expense, 2)
+        row = {
+            "date": d.isoformat(),
+            "new_contacts": m["new_contacts"],
+            "incoming": m["incoming"],
+            "outgoing": m["outgoing"],
+            "income": round(m["income"], 2),
+            "payment_expense": round(m["payment_expense"], 2),
+            "ad_spend": round(m["ad_spend"], 2),
+            "total_expense": total_expense,
+            "net": net,
+        }
+        series.append(row)
+        for key in ("new_contacts", "incoming", "outgoing"):
+            totals[key] += m[key]
+        totals["income"] += m["income"]
+        totals["payment_expense"] += m["payment_expense"]
+        totals["ad_spend"] += m["ad_spend"]
+        totals["total_expense"] += total_expense
+        totals["net"] += net
+    for key in ("income", "payment_expense", "ad_spend", "total_expense", "net"):
+        totals[key] = round(totals[key], 2)
+
+    return {
+        "range": {"from": from_d.isoformat(), "to": to_d.isoformat()},
+        "days": series,
+        "totals": totals,
     }

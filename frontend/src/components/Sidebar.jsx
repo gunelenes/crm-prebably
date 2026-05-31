@@ -11,6 +11,7 @@ const menuItems = [
   { to: "/hatirlatmalar", icon: "🔔", label: "Hatırlatmalar" },
   { to: "/odemeler", icon: "💳", label: "Ödemeler", adminOnly: true },
   { to: "/reklam-analizi", icon: "📊", label: "Reklam Analizi", adminOnly: true },
+  { to: "/grafikler", icon: "📈", label: "Grafikler", adminOnly: true },
   { to: "/hazir-mesajlar", icon: "⚡", label: "Hazır Mesajlar" },
   { to: "/parametreler", icon: "⚙️", label: "Parametreler" },
   { to: "/kullanicilar", icon: "👥", label: "Kullanıcılar", adminOnly: true },

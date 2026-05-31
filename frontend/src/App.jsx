@@ -7,6 +7,7 @@ import MessagesPage from "./pages/MessagesPage";
 import ContactsPage from "./pages/contacts/ContactsPage";
 import PaymentsPage from "./pages/payments/PaymentsPage";
 import AdvertisingPage from "./pages/advertising/AdvertisingPage";
+import ReportsPage from "./pages/reports/ReportsPage";
 import RemindersPage from "./pages/RemindersPage";
 import QuickRepliesPage from "./pages/QuickRepliesPage";
 import ParametersPage from "./pages/parameters/ParametersPage";
@@ -27,6 +28,9 @@ export default function App() {
         } />
         <Route path="reklam-analizi" element={
           <ProtectedRoute adminOnly><AdvertisingPage /></ProtectedRoute>
+        } />
+        <Route path="grafikler" element={
+          <ProtectedRoute adminOnly><ReportsPage /></ProtectedRoute>
         } />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
         <Route path="parametreler" element={<ParametersPage />} />
