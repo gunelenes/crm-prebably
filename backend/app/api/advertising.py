@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Body, File, UploadFile, HTTPException, Request, Query
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -339,18 +339,13 @@ def sync_ads(
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     client = request.app.state.sync_http
 
-    # Hesap kaynağı önceliği: DB (Parametreler ekranı) → .env → token'dan otomatik keşif
+    # Sadece Parametreler'de tanımlı (aktif) hesaplar senkronize edilir.
+    # Otomatik keşif ve .env fallback'i bilinçli olarak KULLANILMAZ — kullanıcı
+    # Parametreler dışında hiçbir hesabın verisini görmek istemiyor.
     accounts = _db_accounts(db)
     if not accounts:
-        accounts = config.get_configured_ad_accounts()
-    if not accounts:
-        accounts, disc_err = _discover_accounts(client, token, version)
-        if disc_err:
-            msg = disc_err.get("message", str(disc_err)) if isinstance(disc_err, dict) else str(disc_err)
-            return {"status": "error", "synced": 0, "error": f"Reklam hesapları alınamadı: {msg}"}
-        if not accounts:
-            return {"status": "error", "synced": 0,
-                    "error": "Reklam hesabı tanımlı değil. Parametreler → Reklam Hesapları'ndan ekleyin."}
+        return {"status": "error", "synced": 0,
+                "error": "Reklam hesabı tanımlı değil. Parametreler → Reklam Hesapları'ndan ekleyin."}
 
     upserted = 0
     errors = []
@@ -566,7 +561,8 @@ def list_ad_spend(
 ):
     limit = max(1, min(int(limit), 500))
     offset = max(0, int(offset))
-    base = db.query(AdSpend)
+    # Sadece Parametreler'de tanımlı hesaplar gösterilir (yetim satırlar gizlenir)
+    base = db.query(AdSpend).filter(AdSpend.account_act_id.in_(select(AdAccount.act_id)))
     df = _parse_date(date_from)
     dt = _parse_date(date_to)
     if df:
@@ -609,7 +605,9 @@ def analytics_summary(
 ):
     to_d = _parse_date(to) or date.today()
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
-    spend_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d]
+    # Sadece Parametreler'de tanımlı hesaplar (yetim/otomatik-keşfedilmiş satırlar gizlenir)
+    spend_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d,
+                     AdSpend.account_act_id.in_(select(AdAccount.act_id))]
     if account:
         spend_filters.append(AdSpend.account_act_id == account)
     spend_range = tuple(spend_filters)
