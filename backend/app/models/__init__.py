@@ -189,10 +189,22 @@ class Payment(Base):
     bank_account        = relationship("BankAccount")
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
+class AdAccount(Base):
+    """İzlenen Meta reklam hesabı — Parametreler ekranından yönetilir.
+    Senkronizasyon aktif hesapları kullanır; pasifler atlanır."""
+    __tablename__ = "ad_accounts"
+    id                  = Column(Integer, primary_key=True, index=True)
+    act_id              = Column(String(64), unique=True, nullable=False, index=True)  # "act_" önekli
+    name                = Column(String(150), nullable=False)
+    purpose             = Column(String(20), default="genel")  # wix_kayit | ig_dm | wa_dm | genel
+    is_active           = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
 class AdSpend(Base):
     """Meta (Instagram/Facebook) reklam harcaması — hesap/gün/adset bazında.
-    Reklam hesabı CRM'de yönetilmez; hesap bilgisi .env'den gelir ve buraya
-    denormalize edilir (account_act_id/account_name/purpose)."""
+    Hesap bilgisi (account_act_id/account_name/purpose) buraya denormalize edilir."""
     __tablename__ = "ad_spend"
     id              = Column(Integer, primary_key=True, index=True)
     account_act_id  = Column(String(64), nullable=False, index=True)   # "act_..." önekli Meta reklam hesabı id'si

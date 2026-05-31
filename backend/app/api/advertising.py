@@ -12,12 +12,12 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, Body, File, UploadFile, HTTPException, Request, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AdSpend, Registration, Contact, User
+from app.models import AdAccount, AdSpend, Registration, Contact, User
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
@@ -168,6 +168,81 @@ def _serialize_registration(r: Registration) -> dict:
     }
 
 
+# ----------------------------- reklam hesapları (CRUD) -----------------------------
+
+def _normalize_act_id(s):
+    s = (s or "").strip()
+    if s and not s.startswith("act_") and s.isdigit():
+        s = "act_" + s
+    return s
+
+
+def _serialize_account(a: AdAccount) -> dict:
+    return {"id": a.id, "act_id": a.act_id, "name": a.name,
+            "purpose": a.purpose, "is_active": a.is_active}
+
+
+@router.get("/ad-accounts")
+def list_ad_accounts(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = db.query(AdAccount).order_by(AdAccount.is_active.desc(), AdAccount.id.asc()).all()
+    return [_serialize_account(a) for a in rows]
+
+
+@router.post("/ad-accounts")
+def create_ad_account(body: dict = Body(...), current_user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    act_id = _normalize_act_id(body.get("act_id"))
+    if not act_id:
+        raise HTTPException(400, "Reklam hesabı ID'si zorunlu")
+    name = (body.get("name") or "").strip() or act_id
+    purpose = body.get("purpose") if body.get("purpose") in config.VALID_AD_PURPOSES else "genel"
+    if db.query(AdAccount.id).filter(AdAccount.act_id == act_id).first():
+        raise HTTPException(400, "Bu reklam hesabı zaten ekli")
+    a = AdAccount(act_id=act_id, name=name, purpose=purpose,
+                  is_active=bool(body.get("is_active", True)),
+                  created_by_user_id=current_user.id)
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+    return {"status": "ok", "id": a.id}
+
+
+@router.put("/ad-accounts/{account_id}")
+def update_ad_account(account_id: int, body: dict = Body(...), _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    a = db.query(AdAccount).filter(AdAccount.id == account_id).first()
+    if not a:
+        raise HTTPException(404, "Hesap bulunamadı")
+    if "act_id" in body:
+        new_act = _normalize_act_id(body.get("act_id"))
+        if not new_act:
+            raise HTTPException(400, "Geçersiz reklam hesabı ID'si")
+        if new_act != a.act_id and db.query(AdAccount.id).filter(AdAccount.act_id == new_act).first():
+            raise HTTPException(400, "Bu reklam hesabı zaten ekli")
+        a.act_id = new_act
+    if body.get("name"):
+        a.name = body["name"].strip()
+    if "purpose" in body and body["purpose"] in config.VALID_AD_PURPOSES:
+        a.purpose = body["purpose"]
+    if "is_active" in body:
+        a.is_active = bool(body["is_active"])
+    db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/ad-accounts/{account_id}")
+def delete_ad_account(account_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    a = db.query(AdAccount).filter(AdAccount.id == account_id).first()
+    if not a:
+        return {"error": "Bulunamadı"}
+    db.delete(a)
+    db.commit()
+    return {"status": "ok"}
+
+
+def _db_accounts(db):
+    rows = db.query(AdAccount).filter(AdAccount.is_active == True).all()
+    return [{"act_id": a.act_id, "name": a.name, "purpose": a.purpose} for a in rows]
+
+
 # ----------------------------- Meta senkronizasyonu -----------------------------
 
 def _meta_get(client, url, params=None):
@@ -264,7 +339,10 @@ def sync_ads(
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     client = request.app.state.sync_http
 
-    accounts = config.get_configured_ad_accounts()
+    # Hesap kaynağı önceliği: DB (Parametreler ekranı) → .env → token'dan otomatik keşif
+    accounts = _db_accounts(db)
+    if not accounts:
+        accounts = config.get_configured_ad_accounts()
     if not accounts:
         accounts, disc_err = _discover_accounts(client, token, version)
         if disc_err:
@@ -272,7 +350,7 @@ def sync_ads(
             return {"status": "error", "synced": 0, "error": f"Reklam hesapları alınamadı: {msg}"}
         if not accounts:
             return {"status": "error", "synced": 0,
-                    "error": "Token altında reklam hesabı bulunamadı. META_AD_ACCOUNTS ile elle tanımlayabilirsiniz."}
+                    "error": "Reklam hesabı tanımlı değil. Parametreler → Reklam Hesapları'ndan ekleyin."}
 
     upserted = 0
     errors = []
@@ -509,12 +587,16 @@ def list_ad_spend(
 def analytics_summary(
     from_: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = None,
+    account: Optional[str] = None,
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     to_d = _parse_date(to) or date.today()
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
-    spend_range = (AdSpend.date >= from_d, AdSpend.date <= to_d)
+    spend_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d]
+    if account:
+        spend_filters.append(AdSpend.account_act_id == account)
+    spend_range = tuple(spend_filters)
 
     # --- hesap bazlı ---
     acc_rows = (db.query(

@@ -16,13 +16,22 @@ export default function AdvertisingPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null); // { type: 'ok'|'error', text }
   const [showUpload, setShowUpload] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [account, setAccount] = useState(""); // "" = Tümü
+
+  useEffect(() => {
+    api.get("/ad-accounts").then((r) => setAccounts(r.data)).catch(() => {});
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      const sumParams = { from, to };
+      const spendParams = { date_from: from, date_to: to, limit: 200 };
+      if (account) { sumParams.account = account; spendParams.account = account; }
       const [s, sp] = await Promise.all([
-        api.get("/analytics/summary", { params: { from, to } }),
-        api.get("/ad-spend", { params: { date_from: from, date_to: to, limit: 200 } }),
+        api.get("/analytics/summary", { params: sumParams }),
+        api.get("/ad-spend", { params: spendParams }),
       ]);
       setSummary(s.data);
       setSpendRows(sp.data.items || []);
@@ -31,7 +40,7 @@ export default function AdvertisingPage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, account]);
 
   useEffect(() => {
     const t = setTimeout(() => { fetchAll(); }, 200);
@@ -93,8 +102,16 @@ export default function AdvertisingPage() {
           </div>
         )}
 
-        {/* Tarih aralığı */}
+        {/* Hesap seçimi + tarih aralığı */}
         <div className="rounded-2xl bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 shadow-sm p-4 flex flex-wrap items-center gap-3">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Hesap</span>
+          <select value={account} onChange={(e) => setAccount(e.target.value)} className={dateCls}>
+            <option value="">Tüm Hesaplar</option>
+            {accounts.map((a) => (
+              <option key={a.act_id} value={a.act_id}>{a.name}{a.is_active ? "" : " (pasif)"}</option>
+            ))}
+          </select>
+          <span className="hidden md:inline w-px h-5 bg-slate-200 dark:bg-white/10" />
           <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Tarih Aralığı</span>
           <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className={dateCls} />
           <span className="text-slate-400">→</span>
