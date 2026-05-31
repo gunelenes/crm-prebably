@@ -115,6 +115,27 @@ def _classify_channel(default_channel: str, adset_name, campaign_name) -> str:
     return default_channel or "other"
 
 
+# Meta ad set destination_type → kanal. Yetkili sinyal (isim sezgisinden önce gelir).
+_DESTINATION_CHANNEL = {
+    "WHATSAPP": "whatsapp",
+    "INSTAGRAM_DIRECT": "instagram",
+    "MESSENGER": "messenger",
+}
+
+
+def _channel_from_destination(destination_type) -> Optional[str]:
+    """destination_type'tan kanalı belirler. Bilinmeyen/mesajlaşma-dışı/None → None
+    (çağıran isim sezgisine düşer). Çoklu hedef (MESSAGING_*) → 'karma' (bölünemez)."""
+    if not destination_type:
+        return None
+    dt = str(destination_type).upper()
+    if dt in _DESTINATION_CHANNEL:        # birebir eşleşme MESSAGING_ testinden ÖNCE
+        return _DESTINATION_CHANNEL[dt]
+    if dt.startswith("MESSAGING_"):       # çoklu hedef: Meta kullanıcıya göre seçer
+        return "karma"
+    return None
+
+
 def _action_value(actions, types) -> int:
     if not actions:
         return 0
@@ -269,7 +290,30 @@ def _discover_accounts(client, token, version):
     return out, None
 
 
-def _upsert_spend(db, rec, act_id, name, purpose, default_channel) -> int:
+def _fetch_destination_map(client, act_id, token, version) -> dict:
+    """{adset_id: destination_type} — kanal sınıflandırması için yetkili sinyal.
+    Hesap başına bir kez çağrılır. Hata/exception → boş dict (isim sezgisine düşülür)."""
+    url = f"https://graph.facebook.com/{version}/{act_id}/adsets"
+    params = {"fields": "id,destination_type", "limit": 500, "access_token": token}
+    out, page = {}, 0
+    try:
+        while url and page < 20:
+            data = _meta_get(client, url, params)
+            params = None  # paging.next tam URL içerir
+            if data.get("error"):
+                return out
+            for a in data.get("data", []):
+                aid = a.get("id")
+                if aid:
+                    out[aid] = a.get("destination_type")
+            url = (data.get("paging") or {}).get("next")
+            page += 1
+    except Exception:
+        return out
+    return out
+
+
+def _upsert_spend(db, rec, act_id, name, purpose, default_channel, dest_map) -> int:
     row_date = _parse_date(rec.get("date_start"))
     if not row_date:
         return 0
@@ -306,7 +350,9 @@ def _upsert_spend(db, rec, act_id, name, purpose, default_channel) -> int:
     target.campaign_id = rec.get("campaign_id")
     target.campaign_name = rec.get("campaign_name")
     target.adset_name = rec.get("adset_name")
-    target.channel = _classify_channel(default_channel, rec.get("adset_name"), rec.get("campaign_name"))
+    # Kanal: önce ad set destination_type (yetkili), yoksa isim sezgisi
+    target.channel = (_channel_from_destination(dest_map.get(adset_id))
+                      or _classify_channel(default_channel, rec.get("adset_name"), rec.get("campaign_name")))
     target.objective = rec.get("objective")
     target.spend = spend
     target.impressions = int(float(rec.get("impressions") or 0))
@@ -352,6 +398,7 @@ def sync_ads(
     for acc in accounts:
         act_id, name, purpose = acc["act_id"], acc["name"], acc["purpose"]
         default_channel = _default_channel_for_purpose(purpose)
+        dest_map = _fetch_destination_map(client, act_id, token, version)  # hesap başına bir kez
         url = f"https://graph.facebook.com/{version}/{act_id}/insights"
         params = {
             "level": "adset",
@@ -372,7 +419,7 @@ def sync_ads(
                     errors.append({"account": act_id, "error": err.get("message", str(err))})
                     break
                 for rec in data.get("data", []):
-                    upserted += _upsert_spend(db, rec, act_id, name, purpose, default_channel)
+                    upserted += _upsert_spend(db, rec, act_id, name, purpose, default_channel, dest_map)
                 url = (data.get("paging") or {}).get("next")
                 page += 1
         except Exception as e:  # ağ/parse hatası bir hesabı düşürmesin

@@ -17,6 +17,8 @@ export const PURPOSE_LABELS = {
 export const CHANNEL_META = {
   instagram: { label: "Instagram", icon: "📸", gradient: "bg-gradient-to-br from-fuchsia-500 to-violet-600", shadow: "shadow-fuchsia-500/30" },
   whatsapp: { label: "WhatsApp", icon: "🟢", gradient: "bg-gradient-to-br from-emerald-400 to-emerald-600", shadow: "shadow-emerald-500/30" },
+  messenger: { label: "Messenger", icon: "💬", gradient: "bg-gradient-to-br from-sky-400 to-blue-600", shadow: "shadow-sky-500/30" },
+  karma: { label: "Karma (IG/WA)", icon: "🔀", gradient: "bg-gradient-to-br from-amber-400 to-orange-600", shadow: "shadow-amber-500/30" },
   facebook: { label: "Facebook", icon: "📘", gradient: "bg-gradient-to-br from-blue-500 to-indigo-600", shadow: "shadow-blue-500/30" },
   other: { label: "Diğer", icon: "🔗", gradient: "bg-gradient-to-br from-slate-500 to-slate-700", shadow: "shadow-slate-500/30" },
 };
