@@ -1,5 +1,5 @@
 from app.database import Base
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Enum, Numeric, LargeBinary
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Boolean, ForeignKey, Enum, Numeric, LargeBinary, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -188,3 +188,50 @@ class Payment(Base):
     contact             = relationship("Contact", back_populates="payments")
     bank_account        = relationship("BankAccount")
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
+class AdSpend(Base):
+    """Meta (Instagram/Facebook) reklam harcaması — hesap/gün/adset bazında.
+    Reklam hesabı CRM'de yönetilmez; hesap bilgisi .env'den gelir ve buraya
+    denormalize edilir (account_act_id/account_name/purpose)."""
+    __tablename__ = "ad_spend"
+    id              = Column(Integer, primary_key=True, index=True)
+    account_act_id  = Column(String(64), nullable=False, index=True)   # "act_..." önekli Meta reklam hesabı id'si
+    account_name    = Column(String(150), nullable=True)
+    purpose         = Column(String(20), default="genel")             # wix_kayit | ig_dm | wa_dm | genel
+    date            = Column(Date, nullable=False, index=True)         # time_increment=1 → bu satırın kapsadığı gün
+    campaign_id     = Column(String(64), nullable=True)
+    campaign_name   = Column(String(255), nullable=True)
+    adset_id        = Column(String(80), nullable=True)
+    adset_name      = Column(String(255), nullable=True)
+    channel         = Column(String(20), default="other")             # instagram | whatsapp | facebook | other
+    objective       = Column(String(50), nullable=True)
+    spend           = Column(Numeric(12, 2), default=0)
+    impressions     = Column(Integer, default=0)
+    clicks          = Column(Integer, default=0)
+    reach           = Column(Integer, default=0)
+    results         = Column(Integer, default=0)                      # mesajlaşma konuşması VEYA link tıklaması
+    result_type     = Column(String(40), nullable=True)              # messaging_conversation_started | link_click | manual
+    currency        = Column(String(3), default="TRY")
+    source          = Column(String(20), default="meta_sync")        # meta_sync | manual
+    synced_at       = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("account_act_id", "date", "adset_id", name="uq_adspend_acct_date_adset"),
+        Index("ix_adspend_acct_date", "account_act_id", "date"),
+    )
+
+class Registration(Base):
+    """Wix seminer kaydı — CSV ile yüklenir, e-posta/telefon ile kişiye eşleştirilir."""
+    __tablename__ = "registrations"
+    id                  = Column(Integer, primary_key=True, index=True)
+    name                = Column(String(150), nullable=True)
+    email               = Column(String(255), nullable=True, index=True)
+    phone               = Column(String(32), nullable=True, index=True)
+    seminar             = Column(String(255), nullable=True)
+    registered_at       = Column(DateTime, nullable=True)
+    source              = Column(String(20), default="wix_csv")
+    source_channel      = Column(String(20), nullable=True)          # gelecek (Faz 3): kanal bazlı attribution
+    matched_contact_id  = Column(Integer, ForeignKey("contacts.id"), nullable=True, index=True)
+    dedup_key           = Column(String(80), nullable=True, unique=True, index=True)
+    raw                 = Column(Text, nullable=True)                # orijinal CSV satırı (JSON)
+    uploaded_at         = Column(DateTime, default=datetime.utcnow)
+    matched_contact     = relationship("Contact", foreign_keys=[matched_contact_id])
