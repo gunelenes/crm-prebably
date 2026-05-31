@@ -583,6 +583,22 @@ def list_ad_spend(
     return {"total": int(total), "items": [_serialize_spend(s) for s in rows]}
 
 
+@router.delete("/ad-spend")
+def clear_ad_spend(
+    account: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Saklı reklam harcaması satırlarını siler. account verilirse sadece o hesabı,
+    verilmezse tümünü temizler. Hesap tanımlarını (AdAccount) ve kayıtları etkilemez."""
+    q = db.query(AdSpend)
+    if account:
+        q = q.filter(AdSpend.account_act_id == account)
+    deleted = q.delete(synchronize_session=False)
+    db.commit()
+    return {"status": "ok", "deleted": int(deleted or 0)}
+
+
 @router.get("/analytics/summary")
 def analytics_summary(
     from_: Optional[str] = Query(None, alias="from"),

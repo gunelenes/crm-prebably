@@ -71,6 +71,20 @@ export default function AdvertisingPage() {
     }
   };
 
+  const handleClear = async () => {
+    const acc = accounts.find((a) => a.act_id === account);
+    const scope = account ? `“${acc?.name || account}” hesabının` : "TÜM hesapların";
+    if (!window.confirm(`${scope} saklı harcama verisi silinecek. Hesap tanımları ve kayıtlar etkilenmez. Emin misin?`)) return;
+    setSyncMsg(null);
+    try {
+      const res = await api.delete("/ad-spend", { params: account ? { account } : {} });
+      setSyncMsg({ type: "ok", text: `${res.data?.deleted ?? 0} harcama satırı silindi.` });
+      await fetchAll();
+    } catch (err) {
+      setSyncMsg({ type: "error", text: err.response?.data?.detail || "Silinemedi" });
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-5">
@@ -81,6 +95,10 @@ export default function AdvertisingPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Meta reklam harcamaları ve seminer kayıt istatistikleri</p>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={handleClear}
+              className="py-2 px-4 rounded-xl text-sm font-medium transition-colors bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              🗑️ Veriyi Temizle
+            </button>
             <button onClick={() => setShowUpload(true)}
               className="py-2 px-4 rounded-xl text-sm font-medium transition-colors bg-white/60 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-white/10">
               📥 Kayıt Yükle (CSV)
