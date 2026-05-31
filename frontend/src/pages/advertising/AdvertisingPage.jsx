@@ -19,10 +19,16 @@ export default function AdvertisingPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [account, setAccount] = useState(""); // "" = Tümü
+  const [status, setStatus] = useState(null); // /ads/status: son senkron + token durumu
+
+  const fetchStatus = useCallback(() => {
+    api.get("/ads/status").then((r) => setStatus(r.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get("/ad-accounts").then((r) => setAccounts(r.data)).catch(() => {});
-  }, []);
+    fetchStatus();
+  }, [fetchStatus]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -64,6 +70,7 @@ export default function AdvertisingPage() {
             (errCount ? ` · ${errCount} hesapta hata` : ""),
         });
         await fetchAll();
+        fetchStatus();
       }
     } catch (err) {
       setSyncMsg({ type: "error", text: err.response?.data?.detail || "Senkronizasyon başarısız" });
@@ -119,6 +126,25 @@ export default function AdvertisingPage() {
           }`}>
             {syncMsg.type === "error" ? "⚠️ " : "✅ "}{syncMsg.text}
           </div>
+        )}
+
+        {/* Token uyarısı (süresi bitiyor / geçersiz) */}
+        {status && (status.token_valid === false || (status.token_days_left != null && status.token_days_left <= 10)) && (
+          <div className="text-xs rounded-xl px-3 py-2 border bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300">
+            ⚠️ {status.token_valid === false
+              ? "Meta erişim anahtarı geçersiz veya süresi dolmuş — Marketing API → Tools'tan yenileyip Railway Variables'taki META_ACCESS_TOKEN'ı güncelleyin."
+              : `Meta erişim anahtarının süresi ${status.token_days_left} gün sonra dolacak — bitmeden yenileyin (Marketing API → Tools).`}
+          </div>
+        )}
+
+        {/* Son senkronizasyon bilgisi */}
+        {status?.last_run_at && (
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">
+            🔄 Son senkron: {new Date(status.last_run_at).toLocaleString("tr-TR")}
+            {status.last_status ? ` · ${status.last_status === "ok" ? "başarılı" : "hata"}` : ""}
+            {status.token_days_left != null && status.token_valid !== false ? ` · token ~${status.token_days_left} gün geçerli` : ""}
+            {" · otomatik senkron açık"}
+          </p>
         )}
 
         {/* Hesap seçimi + tarih aralığı */}

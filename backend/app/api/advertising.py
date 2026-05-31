@@ -8,6 +8,7 @@ import csv
 import io
 import json
 import hashlib
+import httpx
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Optional
@@ -16,11 +17,16 @@ from fastapi import APIRouter, Depends, Body, File, UploadFile, HTTPException, R
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import AdAccount, AdSpend, Registration, Contact, Payment, User
+from app.database import get_db, SessionLocal
+from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, User
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
+
+# Otomatik senkronizasyon: en az bu aralıkta bir başarılı senkron yeter
+AUTO_SYNC_INTERVAL_HOURS = 12
+AUTO_SYNC_DAYS = 7          # her otomatik çekişte son 7 gün (Meta revizyonlarını yakalar)
+TOKEN_CHECK_INTERVAL_HOURS = 6
 
 router = APIRouter()
 
@@ -366,28 +372,9 @@ def _upsert_spend(db, rec, act_id, name, purpose, default_channel, dest_map) -> 
     return 1
 
 
-@router.post("/ads/sync")
-def sync_ads(
-    request: Request,
-    from_: Optional[str] = Query(None, alias="from"),
-    to: Optional[str] = None,
-    _: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    token = config.META_ACCESS_TOKEN
-    if not token:
-        return {"status": "error", "synced": 0,
-                "error": "META_ACCESS_TOKEN tanımlı değil. Reklam senkronizasyonu için "
-                         "Meta erişim anahtarı (.env) gerekli."}
-
-    version = config.META_GRAPH_VERSION
-    to_d = _parse_date(to) or date.today()
-    from_d = _parse_date(from_) or (to_d - timedelta(days=30))
-    client = request.app.state.sync_http
-
-    # Sadece Parametreler'de tanımlı (aktif) hesaplar senkronize edilir.
-    # Otomatik keşif ve .env fallback'i bilinçli olarak KULLANILMAZ — kullanıcı
-    # Parametreler dışında hiçbir hesabın verisini görmek istemiyor.
+def run_ad_sync(db, client, token, version, from_d, to_d) -> dict:
+    """Senkronizasyon çekirdeği — endpoint ve otomatik görev ortak kullanır.
+    Sadece Parametreler'de tanımlı (aktif) hesapları çeker."""
     accounts = _db_accounts(db)
     if not accounts:
         return {"status": "error", "synced": 0,
@@ -427,6 +414,135 @@ def sync_ads(
 
     db.commit()
     return {"status": "ok", "synced": upserted, "accounts": len(accounts), "errors": errors}
+
+
+def _check_token(client, token, version) -> dict:
+    """Meta token geçerliliği + son kullanma tarihi (debug_token). Hata → bilinmiyor."""
+    app_id = config.INSTAGRAM_APP_ID
+    app_secret = config.INSTAGRAM_APP_SECRET
+    access = f"{app_id}|{app_secret}" if (app_id and app_secret) else token
+    url = f"https://graph.facebook.com/{version}/debug_token"
+    try:
+        data = _meta_get(client, url, {"input_token": token, "access_token": access})
+    except Exception:
+        return {"valid": None, "expires_at": None}
+    if data.get("error"):
+        return {"valid": None, "expires_at": None}
+    d = data.get("data") or {}
+    expires_at = None
+    exp = d.get("expires_at")
+    if exp and int(exp) > 0:  # 0 = süresiz
+        try:
+            expires_at = datetime.utcfromtimestamp(int(exp))
+        except (ValueError, OSError, OverflowError):
+            expires_at = None
+    return {"valid": d.get("is_valid"), "expires_at": expires_at}
+
+
+def _get_sync_state(db) -> AdSyncState:
+    st = db.query(AdSyncState).first()
+    if st is None:
+        st = AdSyncState()
+        db.add(st)
+        db.commit()
+        db.refresh(st)
+    return st
+
+
+def _store_sync_state(db, result, tok):
+    st = _get_sync_state(db)
+    if result is not None:
+        st.last_status = result.get("status")
+        st.last_synced = int(result.get("synced") or 0)
+        if result.get("status") == "ok":
+            errs = result.get("errors") or []
+            st.last_message = f"{len(errs)} hesapta hata" if errs else "Başarılı"
+            st.last_run_at = datetime.utcnow()   # yalnızca başarılı senkron ilerletir
+        else:
+            st.last_message = result.get("error")
+    if tok is not None:
+        st.token_valid = tok.get("valid")
+        st.token_expires_at = tok.get("expires_at")
+        st.token_checked_at = datetime.utcnow()
+    st.updated_at = datetime.utcnow()
+    db.commit()
+
+
+def auto_sync_tick():
+    """Arka plan görevi: gerekiyorsa otomatik senkron + token kontrolü.
+    Kendi DB session ve HTTP client'ını açar; hiçbir hata yukarı sızmaz."""
+    token = config.META_ACCESS_TOKEN
+    if not token:
+        return
+    version = config.META_GRAPH_VERSION
+    db = SessionLocal()
+    client = httpx.Client(timeout=60.0)
+    try:
+        st = _get_sync_state(db)
+        now = datetime.utcnow()
+        due = (st.last_run_at is None
+               or (now - st.last_run_at) >= timedelta(hours=AUTO_SYNC_INTERVAL_HOURS))
+        need_token = (st.token_checked_at is None
+                      or (now - st.token_checked_at) >= timedelta(hours=TOKEN_CHECK_INTERVAL_HOURS))
+        result = None
+        if due:
+            to_d = date.today()
+            from_d = to_d - timedelta(days=AUTO_SYNC_DAYS)
+            result = run_ad_sync(db, client, token, version, from_d, to_d)
+        tok = _check_token(client, token, version) if (need_token or due) else None
+        if result is not None or tok is not None:
+            _store_sync_state(db, result, tok)
+    except Exception:
+        pass
+    finally:
+        client.close()
+        db.close()
+
+
+@router.post("/ads/sync")
+def sync_ads(
+    request: Request,
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    token = config.META_ACCESS_TOKEN
+    if not token:
+        return {"status": "error", "synced": 0,
+                "error": "META_ACCESS_TOKEN tanımlı değil. Reklam senkronizasyonu için "
+                         "Meta erişim anahtarı (.env) gerekli."}
+    version = config.META_GRAPH_VERSION
+    to_d = _parse_date(to) or date.today()
+    from_d = _parse_date(from_) or (to_d - timedelta(days=30))
+    client = request.app.state.sync_http
+    result = run_ad_sync(db, client, token, version, from_d, to_d)
+    tok = _check_token(client, token, version)
+    _store_sync_state(db, result, tok)
+    return result
+
+
+@router.get("/ads/status")
+def ads_status(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    st = db.query(AdSyncState).first()
+    token_configured = bool(config.META_ACCESS_TOKEN)
+    if st is None:
+        return {"last_run_at": None, "last_status": None, "last_synced": 0, "last_message": None,
+                "token_configured": token_configured, "token_valid": None,
+                "token_expires_at": None, "token_days_left": None,
+                "auto_sync_interval_hours": AUTO_SYNC_INTERVAL_HOURS}
+    days_left = (st.token_expires_at - datetime.utcnow()).days if st.token_expires_at else None
+    return {
+        "last_run_at": iso_utc(st.last_run_at),
+        "last_status": st.last_status,
+        "last_synced": st.last_synced or 0,
+        "last_message": st.last_message,
+        "token_configured": token_configured,
+        "token_valid": st.token_valid,
+        "token_expires_at": iso_utc(st.token_expires_at),
+        "token_days_left": days_left,
+        "auto_sync_interval_hours": AUTO_SYNC_INTERVAL_HOURS,
+    }
 
 
 @router.post("/ads/manual")

@@ -231,6 +231,19 @@ class AdSpend(Base):
         Index("ix_adspend_acct_date", "account_act_id", "date"),
     )
 
+class AdSyncState(Base):
+    """Otomatik reklam senkronizasyonu + token durumu (tek satır)."""
+    __tablename__ = "ad_sync_state"
+    id                = Column(Integer, primary_key=True, index=True)
+    last_run_at       = Column(DateTime, nullable=True)   # son BAŞARILI senkron
+    last_status       = Column(String(20), nullable=True) # ok | error
+    last_synced       = Column(Integer, default=0)
+    last_message      = Column(Text, nullable=True)
+    token_valid       = Column(Boolean, nullable=True)
+    token_expires_at  = Column(DateTime, nullable=True)   # None = süresiz/bilinmiyor
+    token_checked_at  = Column(DateTime, nullable=True)
+    updated_at        = Column(DateTime, default=datetime.utcnow)
+
 class Registration(Base):
     """Wix seminer kaydı — CSV ile yüklenir, e-posta/telefon ile kişiye eşleştirilir."""
     __tablename__ = "registrations"

@@ -6,6 +6,8 @@ load_dotenv()
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID")
 INSTAGRAM_TOKEN = os.getenv("INSTAGRAM_TOKEN")
+INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID")
+INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET")
 WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN")
 # Meta'nın giden ses dosyalarını çekebilmesi için herkese açık (public) HTTPS taban adresi.
 # Sonunda /api OLMADAN verilmeli — örn. https://crm-prebably-production.up.railway.app

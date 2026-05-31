@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import httpx
 import socketio
@@ -25,6 +26,24 @@ async def connect(sid, environ, auth):
         return False
 
 
+# Otomatik reklam senkronizasyonu: arka plan döngüsü her bu kadar sürede bir
+# kontrol eder; gerçek senkron sıklığı advertising.AUTO_SYNC_INTERVAL_HOURS'a bağlı.
+AUTO_SYNC_CHECK_SECONDS = 1800  # 30 dk
+
+
+async def _auto_sync_loop():
+    from app.api.advertising import auto_sync_tick
+    await asyncio.sleep(60)  # boot'u bloklamasın, ilk tetik 1 dk sonra
+    while True:
+        try:
+            await asyncio.to_thread(auto_sync_tick)  # senkron iş → ayrı thread
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            pass
+        await asyncio.sleep(AUTO_SYNC_CHECK_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global http_client, sync_http_client
@@ -33,9 +52,15 @@ async def lifespan(app: FastAPI):
     sync_http_client = httpx.Client(timeout=60.0)
     app.state.http = http_client
     app.state.sync_http = sync_http_client
+    auto_task = asyncio.create_task(_auto_sync_loop())  # otomatik senkron
     try:
         yield
     finally:
+        auto_task.cancel()
+        try:
+            await auto_task
+        except (asyncio.CancelledError, Exception):
+            pass
         await http_client.aclose()
         sync_http_client.close()
 
