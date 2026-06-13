@@ -196,7 +196,12 @@ async def reply_message(conversation_id: int, request: Request, current_user: Us
 
     contact = db.query(Contact).filter(Contact.id == conversation.contact_id).first()
 
-    result = await _send_text(request, conversation.platform, contact.external_id, text)
+    try:
+        result = await _send_text(request, conversation.platform, contact.external_id, text)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Gönderim hatası: {type(e).__name__}: {e}"}
 
     if "error" not in result:
         now = datetime.utcnow()
