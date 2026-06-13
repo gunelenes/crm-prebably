@@ -32,10 +32,14 @@ EPHEMERAL_TEXT = "👁️ Tek gösterimlik mesaj geldi (içeriği görüntülene
 UNSUPPORTED_TEXT = "⚠️ Desteklenmeyen mesaj türü geldi"
 
 
-async def _ensure_contact_conv(db, sender_id, platform, preview_text):
+async def _ensure_contact_conv(db, sender_id, platform, preview_text, display_name=None, phone=None):
     """Kişi + konuşmayı bulur/oluşturur; (contact, conversation, is_new) döner.
 
     İlk mesaj statüsü atama ve aktivite logu mantığını içerir.
+
+    display_name: hazır gelen görünen ad (WhatsApp'ta webhook'tan gelir). Verilmezse
+    Instagram için Graph API'den çekilir, diğer platformlar için fallback üretilir.
+    phone: kişinin telefon numarası (WhatsApp'ta wa_id = numara).
     """
     from app.models import ActivityLog, Status
 
@@ -46,11 +50,17 @@ async def _ensure_contact_conv(db, sender_id, platform, preview_text):
 
     if not contact:
         is_new = True
-        real_name = await get_instagram_username(sender_id)
+        if display_name:
+            real_name = display_name
+        elif platform == "instagram":
+            real_name = await get_instagram_username(sender_id)
+        else:
+            real_name = f"{platform} {sender_id[-6:]}"
         contact = Contact(
             platform=platform,
             external_id=sender_id,
             name=real_name,
+            phone=phone,
             status_id=ilk_mesaj_status.id if ilk_mesaj_status else None,
         )
         db.add(contact)
@@ -109,8 +119,10 @@ async def _emit_new_message(platform, sender_id, conversation_id, text, is_new):
         pass
 
 
-async def save_message(db, sender_id, text, mid, platform):
-    contact, conversation, is_new = await _ensure_contact_conv(db, sender_id, platform, text)
+async def save_message(db, sender_id, text, mid, platform, display_name=None, phone=None):
+    contact, conversation, is_new = await _ensure_contact_conv(
+        db, sender_id, platform, text, display_name=display_name, phone=phone
+    )
 
     new_message = Message(
         conversation_id=conversation.id,
@@ -276,6 +288,43 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         await save_message(db, sender_id, text, mid, "instagram")
                     elif is_unsupported and sender_id:
                         await save_message(db, sender_id, UNSUPPORTED_TEXT, mid, "instagram")
+
+    elif body.get("object") == "whatsapp_business_account":
+        # WhatsApp Cloud API: gövde IG'den tamamen farklı.
+        # entry[].changes[].value.messages[]  + value.contacts[] (isim) + value.statuses[] (teslim durumu)
+        for entry in body.get("entry", []):
+            for change in entry.get("changes", []):
+                if change.get("field") != "messages":
+                    continue
+                value = change.get("value", {})
+
+                # wa_id -> profil adı eşlemesi (gelen mesajda isim ayrı gelir)
+                profiles = {}
+                for c in value.get("contacts", []):
+                    wa_id = c.get("wa_id")
+                    if wa_id:
+                        profiles[wa_id] = (c.get("profile") or {}).get("name")
+
+                for msg in value.get("messages", []):
+                    sender_id = msg.get("from")  # wa_id = telefon numarası
+                    mid = msg.get("id")
+                    msg_type = msg.get("type")
+                    if not sender_id:
+                        continue
+                    name = profiles.get(sender_id)
+
+                    if msg_type == "text":
+                        text = (msg.get("text") or {}).get("body")
+                        if text:
+                            await save_message(db, sender_id, text, mid, "whatsapp",
+                                               display_name=name, phone=sender_id)
+                    else:
+                        # Medya/konum/etkileşim vb. — gerçek indirme Faz 4'te.
+                        await save_message(db, sender_id,
+                                           f"📎 Desteklenmeyen içerik ({msg_type})", mid,
+                                           "whatsapp", display_name=name, phone=sender_id)
+
+                # value.statuses[] (sent/delivered/read) şimdilik yok sayılıyor.
 
     return {"status": "ok"}
 

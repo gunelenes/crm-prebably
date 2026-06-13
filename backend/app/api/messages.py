@@ -6,11 +6,50 @@ from sqlalchemy import func, or_
 from app.database import get_db
 from app.models import Contact, Conversation, Message, User, QuickReply
 from app.auth import get_current_user, decode_token
-from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL
+from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL, WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
 from app.utils import iso_utc
 from datetime import datetime, timedelta
 
 router = APIRouter()
+
+
+async def _send_text(request, platform, recipient_id, text):
+    """Platforma göre metin mesajı gönderir. Normalize sonuç döner:
+    başarı: {"ok": True, "message_id": <id|None>}, hata: {"error": <mesaj>}.
+    """
+    if platform == "whatsapp":
+        if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_ID:
+            return {"error": "WhatsApp yapılandırılmadı (WHATSAPP_TOKEN/WHATSAPP_PHONE_ID eksik)"}
+        url = f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_ID}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": recipient_id,
+            "type": "text",
+            "text": {"body": text},
+        }
+        headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+        response = await request.app.state.http.post(url, json=payload, headers=headers)
+        result = response.json()
+        print("WhatsApp yanıt:", result)
+        if "error" not in result:
+            msgs = result.get("messages", [])
+            return {"ok": True, "message_id": msgs[0].get("id") if msgs else None}
+        return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
+
+    # instagram (varsayılan)
+    url = "https://graph.instagram.com/v19.0/me/messages"
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message": {"text": text},
+        "access_token": INSTAGRAM_TOKEN,
+    }
+    response = await request.app.state.http.post(url, json=payload)
+    result = response.json()
+    print("Instagram yanıt:", result)
+    if "error" not in result:
+        return {"ok": True, "message_id": result.get("message_id")}
+    return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
 
 @router.get("/conversations")
 def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, q: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -157,16 +196,7 @@ async def reply_message(conversation_id: int, request: Request, current_user: Us
 
     contact = db.query(Contact).filter(Contact.id == conversation.contact_id).first()
 
-    url = "https://graph.instagram.com/v19.0/me/messages"
-    payload = {
-        "recipient": {"id": contact.external_id},
-        "message": {"text": text},
-        "access_token": INSTAGRAM_TOKEN
-    }
-
-    response = await request.app.state.http.post(url, json=payload)
-    result = response.json()
-    print("Instagram yanıt:", result)
+    result = await _send_text(request, conversation.platform, contact.external_id, text)
 
     if "error" not in result:
         now = datetime.utcnow()
@@ -230,6 +260,10 @@ async def reply_audio(conversation_id: int, request: Request, current_user: User
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
         return {"error": "Konuşma bulunamadı"}
+
+    # WhatsApp ses gönderimi medya yükleme + format dönüşümü gerektirir (Faz 4).
+    if conversation.platform == "whatsapp":
+        return {"error": "WhatsApp için sesli mesaj henüz desteklenmiyor"}
 
     reply = db.query(QuickReply).filter(QuickReply.id == quick_reply_id).first()
     if not reply or not reply.audio_data:
