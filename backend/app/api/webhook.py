@@ -335,6 +335,24 @@ async def test_instagram(request: Request):
     response = await request.app.state.http.get(url)
     return response.json()
 
+@router.get("/test-whatsapp")
+async def test_whatsapp(request: Request):
+    """WhatsApp token + Phone ID teşhisi (mesaj göndermeden).
+
+    display_phone_number/verified_name dönerse → token + Phone ID geçerli.
+    OAuthException/Authentication Error → token sorunu.
+    Object ... does not exist → Phone ID sorunu (muhtemelen WABA ID girilmiş).
+    """
+    from app.config import WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
+    if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_ID:
+        return {"error": "WHATSAPP_TOKEN veya WHATSAPP_PHONE_ID Railway'de tanımlı değil",
+                "token_set": bool(WHATSAPP_TOKEN), "phone_id_set": bool(WHATSAPP_PHONE_ID)}
+    url = (f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_ID}"
+           f"?fields=display_phone_number,verified_name,quality_rating")
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+    response = await request.app.state.http.get(url, headers=headers)
+    return response.json()
+
 @router.get("/test-conversations")
 async def test_conversations(request: Request):
     from app.config import INSTAGRAM_TOKEN
