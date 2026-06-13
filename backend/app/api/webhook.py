@@ -14,7 +14,8 @@ async def get_instagram_username(sender_id: str) -> str:
         url = f"https://graph.instagram.com/v19.0/{sender_id}?fields=name,username&access_token={INSTAGRAM_TOKEN}"
         response = await app_main.http_client.get(url)
         data = response.json()
-        return data.get("name") or data.get("username") or f"Instagram Kullanici {sender_id[-6:]}"
+        # Instagram kullanıcı adı (@handle) öncelikli; yoksa görünen ad, o da yoksa fallback.
+        return data.get("username") or data.get("name") or f"Instagram Kullanici {sender_id[-6:]}"
     except:
         return f"Instagram Kullanici {sender_id[-6:]}"
 
@@ -523,5 +524,43 @@ def sync_conversations(request: Request, db: Session = Depends(get_db)):
         page_url = data.get("paging", {}).get("next")
 
     return {"status": "ok", "synced": synced, "skipped": skipped}
+
+
+@router.post("/backfill-usernames")
+def backfill_usernames(request: Request, db: Session = Depends(get_db)):
+    """Tek seferlik: mevcut Instagram kişilerinin `name` alanını kullanıcı adıyla (@handle) günceller.
+
+    Elle verilen isimler `full_name`'de tutulduğu ve görüntü `full_name or name`
+    olduğu için bu işlem elle isimlendirilmiş kişileri görünürde değiştirmez.
+    """
+    from app.config import INSTAGRAM_TOKEN
+
+    client = request.app.state.sync_http
+    updated = 0
+    failed = 0
+    skipped = 0
+
+    contacts = db.query(Contact).filter(Contact.platform == "instagram").all()
+    for contact in contacts:
+        if not contact.external_id:
+            skipped += 1
+            continue
+        try:
+            url = (f"https://graph.instagram.com/v19.0/{contact.external_id}"
+                   f"?fields=name,username&access_token={INSTAGRAM_TOKEN}")
+            data = client.get(url, timeout=30.0).json()
+            username = data.get("username")
+            if username and contact.name != username:
+                contact.name = username
+                updated += 1
+            else:
+                skipped += 1
+        except Exception:
+            failed += 1
+            continue
+    db.commit()
+
+    return {"status": "ok", "updated": updated, "skipped": skipped, "failed": failed,
+            "total": len(contacts)}
 
     
