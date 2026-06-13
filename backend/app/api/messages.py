@@ -229,7 +229,8 @@ async def reply_message(conversation_id: int, request: Request, current_user: Us
 
         return {"status": "ok"}
 
-    return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
+    # _send_text hata mesajını zaten string olarak normalize ediyor.
+    return {"error": result["error"]}
 
 # Gelen medyayı sunar. Token query param ile gelir çünkü <img>/<audio> etiketleri
 # Authorization header gönderemez. Müşteri medyası olduğu için public DEĞİL.

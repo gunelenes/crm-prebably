@@ -339,7 +339,10 @@ export default function MessagesPage() {
                     <img src={avatarUrl(conv.contact.name)} className="w-9 h-9 rounded-full flex-shrink-0 ring-2 ring-white/60 dark:ring-white/10" alt="" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-xs truncate">{conv.contact.full_name || conv.contact.name}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-xs truncate">
+                          <span className="mr-1" title={conv.platform === "whatsapp" ? "WhatsApp" : conv.platform === "instagram" ? "Instagram" : conv.platform}>{platformIcon(conv.platform)}</span>
+                          {conv.contact.full_name || conv.contact.name}
+                        </span>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-1">{formatTime(conv.last_message_at)}</span>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
