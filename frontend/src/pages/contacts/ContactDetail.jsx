@@ -20,7 +20,7 @@ const ALL_TABS = [
   { id: "reminders", label: "Hatırlatmalar" },
 ];
 
-export default function ContactDetail({ contactStub, contactId, statuses, sectors, trainingSets, onChanged }) {
+export default function ContactDetail({ contactStub, contactId, statuses, sectors, trainingSets, onChanged, onSelectContact }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const TABS = ALL_TABS.filter((t) => !t.adminOnly || user?.role === "admin");
@@ -85,6 +85,22 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
     refresh();
   };
 
+  // Mesajlar sayfasında bu kişinin (açık olan kanalın) sohbetini otomatik aç.
+  const openInMessages = () => {
+    const convId = profile?.channels?.find((c) => c.id === contactId)?.last_conversation_id
+      ?? contactStub?.last_conversation_id ?? null;
+    const d = profile || contactStub;
+    navigate("/mesajlar", {
+      state: convId ? {
+        openConversation: {
+          id: convId,
+          platform: d?.platform,
+          contact: { id: contactId, name: d?.name, full_name: d?.full_name, platform: d?.platform },
+        },
+      } : undefined,
+    });
+  };
+
   return (
     <section className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -114,7 +130,10 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
                 )}
                 {profile?.linked_contact && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 flex items-center gap-1">
-                    🔗 {platformIcon(profile.linked_contact.platform)} {profile.linked_contact.full_name || profile.linked_contact.name}
+                    <button onClick={() => onSelectContact?.(profile.linked_contact.id)}
+                      title="Bağlı hesabın profiline git" className="flex items-center gap-1 hover:underline">
+                      🔗 {platformIcon(profile.linked_contact.platform)} {profile.linked_contact.full_name || profile.linked_contact.name}
+                    </button>
                     <button onClick={unlink} title="Bağlantıyı kaldır" className="ml-0.5 hover:text-red-500">✕</button>
                   </span>
                 )}
@@ -136,9 +155,9 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
                 🔗 Hesap bağla
               </button>
             )}
-            <button onClick={() => navigate("/mesajlar")}
+            <button onClick={openInMessages}
               className="text-xs px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30 hover:from-indigo-600 hover:to-violet-600">
-              💬 Mesajlar'a Git
+              ✍️ Mesaj Yaz
             </button>
           </div>
         </div>
@@ -176,7 +195,7 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
         {activeTab === "messages" && (
           <ContactMessagesTab
             contactId={contactId}
-            conversationId={contactStub?.last_conversation_id}
+            conversationId={profile?.channels?.find((c) => c.id === contactId)?.last_conversation_id ?? contactStub?.last_conversation_id}
             onChanged={refresh}
           />
         )}

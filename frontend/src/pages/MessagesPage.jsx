@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { io } from "socket.io-client";
 import api, { API, SOCKET_URL } from "../api";
 import { avatarUrl, formatTime, platformIcon } from "../utils";
@@ -9,6 +10,7 @@ import ContactPanel from "../components/ContactPanel";
 const mediaUrl = (id) => `${API}/messages/${id}/media?token=${localStorage.getItem("token") || ""}`;
 
 export default function MessagesPage() {
+  const location = useLocation();
   const [conversations, setConversations] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -168,6 +170,18 @@ export default function MessagesPage() {
   useEffect(() => {
     if (selected) messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [selected?.id]);
+
+  // Kişiler sayfasından "Mesaj Yaz" ile gelindiyse o sohbeti otomatik aç (tek sefer).
+  const jumpConsumedRef = useRef(false);
+  useEffect(() => {
+    const oc = location.state?.openConversation;
+    if (oc && oc.id && !jumpConsumedRef.current) {
+      jumpConsumedRef.current = true;
+      setPlatformFilter(null);
+      setSelected(oc);
+      window.history.replaceState({}, ""); // state'i temizle, yenilemede tekrar açılmasın
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!messagesLoading && messages.length > 0) {

@@ -8,8 +8,6 @@ export default function ContactMessagesTab({ contactId, conversationId, onChange
   const [messages, setMessages] = useState([]);
   const [window24, setWindow24] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [sending, setSending] = useState(false);
   const endRef = useRef(null);
 
   // contact değiştiğinde conversation id'sini bul
@@ -36,43 +34,6 @@ export default function ContactMessagesTab({ contactId, conversationId, onChange
       endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [messages, loading]);
-
-  const send = async () => {
-    if (!replyText.trim() || !convId) return;
-    const text = replyText;
-    const tempId = `temp-${Date.now()}`;
-    setMessages((prev) => [...prev, {
-      id: tempId, content: text, direction: "outbound",
-      timestamp: new Date().toISOString(), is_read: true, message_type: "text", _pending: true,
-    }]);
-    setReplyText("");
-    setSending(true);
-    try {
-      const res = await api.post(`/conversations/${convId}/reply`, { text });
-      if (res.data.status === "ok") {
-        const [m, w] = await Promise.all([
-          api.get(`/conversations/${convId}/messages`),
-          api.get(`/conversations/${convId}/window`),
-        ]);
-        setMessages(m.data);
-        setWindow24(w.data);
-        onChanged?.();
-      } else {
-        setMessages((p) => p.filter((m) => m.id !== tempId));
-        setReplyText(text);
-        alert("Hata: " + res.data.error);
-      }
-    } catch {
-      setMessages((p) => p.filter((m) => m.id !== tempId));
-      setReplyText(text);
-      alert("Mesaj gönderilemedi!");
-    }
-    setSending(false);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  };
 
   if (!convId) {
     return (
@@ -116,34 +77,10 @@ export default function ContactMessagesTab({ contactId, conversationId, onChange
         <div ref={endRef} />
       </div>
 
-      <div className="border-t border-slate-200/60 dark:border-white/10 px-6 py-3 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl">
-        {window24 && !window24.open ? (
-          <div className="flex items-center gap-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3">
-            <div className="text-xl">⛔</div>
-            <div>
-              <div className="font-semibold text-rose-700 dark:text-rose-300 text-sm">Mesajlaşma penceresi kapandı</div>
-              <div className="text-rose-500/80 dark:text-rose-400/80 text-xs mt-0.5">Müşteri tekrar yazarsa açılır.</div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-end gap-2">
-            <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={handleKeyDown} placeholder="Mesaj yaz..." rows={2}
-              className="flex-1 resize-none rounded-xl px-3 py-2 text-sm transition-all
-                bg-white/60 dark:bg-slate-800/50 backdrop-blur
-                border border-slate-200/60 dark:border-white/10
-                focus:bg-white dark:focus:bg-slate-800
-                focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500" />
-            <button onClick={send} disabled={sending || !replyText.trim()}
-              className="text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-all
-                bg-gradient-to-r from-indigo-500 to-violet-500
-                hover:from-indigo-600 hover:to-violet-600
-                shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50
-                disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none disabled:cursor-not-allowed dark:disabled:from-slate-700 dark:disabled:to-slate-700">
-              {sending ? "..." : "Gönder"}
-            </button>
-          </div>
-        )}
+      <div className="border-t border-slate-200/60 dark:border-white/10 px-6 py-2.5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl">
+        <div className="text-center text-xs text-slate-400 dark:text-slate-500">
+          👁️ Salt okunur — cevap vermek için <span className="font-medium text-slate-500 dark:text-slate-300">Mesaj Yaz</span> butonunu kullan
+        </div>
       </div>
     </div>
   );

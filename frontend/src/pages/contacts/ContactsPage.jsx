@@ -118,6 +118,7 @@ export default function ContactsPage() {
         sectors={sectors}
         trainingSets={trainingSets}
         onChanged={refresh}
+        onSelectContact={selectContact}
       />
     </div>
   );
