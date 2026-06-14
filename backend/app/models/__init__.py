@@ -260,3 +260,18 @@ class Registration(Base):
     raw                 = Column(Text, nullable=True)                # orijinal CSV satırı (JSON)
     uploaded_at         = Column(DateTime, default=datetime.utcnow)
     matched_contact     = relationship("Contact", foreign_keys=[matched_contact_id])
+
+
+class ContactLink(Base):
+    """İki Contact kaydını 'aynı kişi' olarak eşler (ör. bir IG + bir WhatsApp).
+
+    Konvansiyon: contact_a_id < contact_b_id (ters yön kaydını önler).
+    v1 kuralı: bir kişi en fazla bir başka kişiye bağlı.
+    Yeni tablo olduğu için create_all bunu otomatik oluşturur (manuel SQL gerekmez)."""
+    __tablename__ = "contact_links"
+    id                 = Column(Integer, primary_key=True, index=True)
+    contact_a_id       = Column(Integer, ForeignKey("contacts.id"), nullable=False, index=True)
+    contact_b_id       = Column(Integer, ForeignKey("contacts.id"), nullable=False, index=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    __table_args__ = (UniqueConstraint("contact_a_id", "contact_b_id", name="uq_contact_link"),)

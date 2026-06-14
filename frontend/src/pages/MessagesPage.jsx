@@ -28,6 +28,7 @@ export default function MessagesPage() {
   const [convLimit, setConvLimit] = useState(50);
   const [waitingFilter, setWaitingFilter] = useState(false);
   const [search, setSearch] = useState("");
+  const [platformFilter, setPlatformFilter] = useState(null); // null | "instagram" | "whatsapp"
 
   const fetchTimeoutRef = useRef(null);
   const selectedRef = useRef(null);
@@ -35,11 +36,13 @@ export default function MessagesPage() {
   const convLimitRef = useRef(50);
   const waitingFilterRef = useRef(false);
   const searchRef = useRef("");
+  const platformFilterRef = useRef(null);
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { convLimitRef.current = convLimit; }, [convLimit]);
   useEffect(() => { waitingFilterRef.current = waitingFilter; }, [waitingFilter]);
   useEffect(() => { searchRef.current = search; }, [search]);
+  useEffect(() => { platformFilterRef.current = platformFilter; }, [platformFilter]);
 
   const fetchConversations = () => {
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
@@ -48,6 +51,7 @@ export default function MessagesPage() {
         const params = { limit: convLimitRef.current };
         if (waitingFilterRef.current) params.waiting_for_reply = true;
         if (searchRef.current.trim()) params.q = searchRef.current.trim();
+        if (platformFilterRef.current) params.platform = platformFilterRef.current;
         const res = await api.get("/conversations", { params });
         setConversations(res.data);
       } catch (err) { console.error(err); }
@@ -65,6 +69,22 @@ export default function MessagesPage() {
       console.error(err);
       fetchConversations();
     }
+  };
+
+  // Bağlı kanaldaki (IG/WhatsApp) sohbete atla — ContactPanel'den çağrılır.
+  const jumpToConversation = (linked) => {
+    if (!linked?.last_conversation_id) return;
+    setPlatformFilter(null); // diğer kanal filtreli listede gizli kalmasın
+    setSelected({
+      id: linked.last_conversation_id,
+      platform: linked.platform,
+      contact: {
+        id: linked.id,
+        name: linked.name,
+        full_name: linked.full_name,
+        platform: linked.platform,
+      },
+    });
   };
 
   const syncConversations = async () => {
@@ -99,7 +119,7 @@ export default function MessagesPage() {
   useEffect(() => {
     fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convLimit, waitingFilter, search]);
+  }, [convLimit, waitingFilter, search, platformFilter]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -280,6 +300,24 @@ export default function MessagesPage() {
                 opacity: isActive ? 1 : 0.7,
               }}>
               {s.name} ({statusCounts[s.id] || 0})
+            </button>
+          );
+        })}
+
+        {/* Kanal filtresi: aktif olana tekrar basınca hepsine döner */}
+        <div className="flex-shrink-0 w-px h-5 bg-slate-300/60 dark:bg-white/10 mx-1" />
+        {[
+          { key: "instagram", label: "📸 Instagram" },
+          { key: "whatsapp", label: "💬 WhatsApp" },
+        ].map((ch) => {
+          const isActive = platformFilter === ch.key;
+          return (
+            <button key={ch.key}
+              onClick={() => setPlatformFilter(isActive ? null : ch.key)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isActive
+                ? "bg-gradient-to-r from-sky-500 to-cyan-500 text-white shadow-md shadow-sky-500/30"
+                : "bg-white/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 border border-slate-200/60 dark:border-white/10"}`}>
+              {ch.label}
             </button>
           );
         })}
@@ -495,7 +533,7 @@ export default function MessagesPage() {
           )}
         </div>
 
-        <ContactPanel contact={selected?.contact} statuses={statuses} sectors={sectors} trainingSets={trainingSets} onUpdate={fetchConversations} />
+        <ContactPanel contact={selected?.contact} statuses={statuses} sectors={sectors} trainingSets={trainingSets} onUpdate={fetchConversations} onJumpToConversation={jumpToConversation} />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import Spinner from "./Spinner";
 import ReminderModal from "./ReminderModal";
 import StatusModal from "./StatusModal";
 import UserSelect from "./UserSelect";
+import LinkContactModal from "./LinkContactModal";
 
 const inputCls =
   "w-full rounded-lg px-3 py-1.5 text-sm transition-all " +
@@ -14,7 +15,7 @@ const inputCls =
   "focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 " +
   "text-slate-800 dark:text-slate-100";
 
-export default function ContactPanel({ contact, statuses, sectors = [], trainingSets = [], onUpdate }) {
+export default function ContactPanel({ contact, statuses, sectors = [], trainingSets = [], onUpdate, onJumpToConversation }) {
   const [profile, setProfile] = useState(null);
   const [activity, setActivity] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -22,6 +23,7 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
   const [form, setForm] = useState({});
   const [showReminder, setShowReminder] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+  const [showLink, setShowLink] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [saving, setSaving] = useState(false);
 
@@ -56,6 +58,18 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
   const markDone = async (reminderId) => {
     await api.put(`/contacts/${contact.id}/reminders/${reminderId}/done`);
     loadData();
+  };
+
+  const unlink = async () => {
+    if (!window.confirm("Bağlı hesap kaldırılsın mı?")) return;
+    await api.delete(`/contacts/${contact.id}/link`);
+    await loadData();
+    onUpdate();
+  };
+
+  const goToLinked = () => {
+    const lc = profile?.linked_contact;
+    if (lc?.last_conversation_id && onJumpToConversation) onJumpToConversation(lc);
   };
 
   if (!contact) return (
@@ -101,6 +115,31 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
             🔔 Hatırlatma
           </button>
         </div>
+
+        {/* Bağlı kanal (IG ↔ WhatsApp eşleştirme) */}
+        {profile?.linked_contact ? (
+          <div className="mt-3 flex items-center gap-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/30">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-wide text-sky-700 dark:text-sky-300 font-semibold">Bağlı kanal</div>
+              <div className="text-xs text-slate-700 dark:text-slate-200 truncate">
+                {platformIcon(profile.linked_contact.platform)} {profile.linked_contact.full_name || profile.linked_contact.name}
+              </div>
+            </div>
+            {profile.linked_contact.last_conversation_id && onJumpToConversation && (
+              <button onClick={goToLinked} title="Sohbete git"
+                className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/30 transition-colors">
+                Sohbete git
+              </button>
+            )}
+            <button onClick={unlink} title="Bağlantıyı kaldır"
+              className="flex-shrink-0 text-xs px-1.5 py-1 rounded-lg text-slate-400 hover:text-red-500 transition-colors">✕</button>
+          </div>
+        ) : (
+          <button onClick={() => setShowLink(true)}
+            className="mt-3 w-full text-xs py-1.5 rounded-lg backdrop-blur transition-all border border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/5 hover:bg-sky-500/10">
+            🔗 Hesap bağla (IG / WhatsApp)
+          </button>
+        )}
       </div>
 
       <div className="flex border-b border-slate-200/60 dark:border-white/10">
@@ -289,6 +328,7 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
 
       {showReminder && <ReminderModal contactId={contact.id} onClose={() => setShowReminder(false)} onSave={loadData} />}
       {showStatus && <StatusModal contact={contact} statuses={statuses} onClose={() => setShowStatus(false)} onSave={() => { loadData(); onUpdate(); }} />}
+      {showLink && <LinkContactModal contact={profile || contact} onClose={() => setShowLink(false)} onLinked={() => { loadData(); onUpdate(); }} />}
     </div>
   );
 }

@@ -1,14 +1,73 @@
+import re
 from typing import Optional
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy import func, desc, asc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User
+from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User, ContactLink
 from app.auth import get_current_user
 from app.utils import iso_utc
 from datetime import datetime
 
 router = APIRouter()
+
+
+# --- Hesap eşleştirme (IG ↔ WhatsApp) yardımcıları ---
+
+def _get_link_row(db, contact_id):
+    """Bu kişinin dahil olduğu ContactLink satırını döner (yoksa None)."""
+    return db.query(ContactLink).filter(
+        or_(ContactLink.contact_a_id == contact_id, ContactLink.contact_b_id == contact_id)
+    ).first()
+
+
+def _linked_other_id(link, contact_id):
+    if not link:
+        return None
+    return link.contact_b_id if link.contact_a_id == contact_id else link.contact_a_id
+
+
+def _last_conversation_id(db, contact_id):
+    conv = (db.query(Conversation)
+            .filter(Conversation.contact_id == contact_id)
+            .order_by(Conversation.last_message_at.desc().nullslast())
+            .first())
+    return conv.id if conv else None
+
+
+def _linked_contact_summary(db, contact_id):
+    """Bağlı kişinin özetini döner: {id, platform, name, full_name, last_conversation_id} | None."""
+    other_id = _linked_other_id(_get_link_row(db, contact_id), contact_id)
+    if not other_id:
+        return None
+    other = db.query(Contact).filter(Contact.id == other_id).first()
+    if not other:
+        return None
+    return {
+        "id": other.id,
+        "platform": other.platform,
+        "name": other.name,
+        "full_name": other.full_name,
+        "last_conversation_id": _last_conversation_id(db, other.id),
+    }
+
+
+def _norm_phone(p):
+    """Telefonu son 10 haneye indirger (ülke kodu/format farklarını tolere eder)."""
+    digits = "".join(ch for ch in (p or "") if ch.isdigit())
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+def _name_tokens(c):
+    s = f"{c.name or ''} {c.full_name or ''}".lower()
+    return [t for t in re.split(r"[^0-9a-zçğıöşü]+", s) if len(t) >= 3]
+
+
+def _all_linked_ids(db):
+    ids = set()
+    for l in db.query(ContactLink.contact_a_id, ContactLink.contact_b_id).all():
+        ids.add(l[0]); ids.add(l[1])
+    return ids
 
 @router.get("/contacts/search")
 def search_contacts(
@@ -400,6 +459,7 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "assigned_to_user_id": contact.assigned_to_user_id,
         "assigned_to_user": {"id": contact.assigned_to_user.id, "full_name": contact.assigned_to_user.full_name, "username": contact.assigned_to_user.username} if contact.assigned_to_user else None,
         "created_at": iso_utc(contact.created_at),
+        "linked_contact": _linked_contact_summary(db, contact.id),
     }
 
 @router.put("/contacts/{contact_id}")
@@ -418,6 +478,118 @@ def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(ge
             if field in ("sector_id", "training_set_id", "assigned_to_user_id") and (value == "" or value == 0):
                 value = None
             setattr(contact, field, value)
+    db.commit()
+    return {"status": "ok"}
+
+
+def _suggestion_dict(db, c, reasons):
+    return {
+        "id": c.id,
+        "platform": c.platform,
+        "name": c.name,
+        "full_name": c.full_name,
+        "phone": c.phone,
+        "last_conversation_id": _last_conversation_id(db, c.id),
+        "reason": ", ".join(reasons) if reasons else None,
+    }
+
+
+@router.get("/contacts/{contact_id}/match-suggestions")
+def match_suggestions(contact_id: int, q: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Bu kişiyle eşleştirilebilecek KARŞI platform kişilerini önerir.
+    q verilirse arama yapar; verilmezse telefon/isim benzerliğine göre otomatik önerir."""
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        return {"error": "Bulunamadı"}
+    if _get_link_row(db, contact_id):
+        return []  # zaten bağlı; tek bağ kuralı
+
+    linked_ids = _all_linked_ids(db)
+    base = db.query(Contact).filter(
+        Contact.platform != contact.platform,
+        Contact.id != contact_id,
+    )
+    if linked_ids:
+        base = base.filter(~Contact.id.in_(linked_ids))
+
+    # Serbest arama
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        rows = base.filter(or_(
+            Contact.name.ilike(like),
+            Contact.full_name.ilike(like),
+            Contact.phone.ilike(like),
+        )).limit(20).all()
+        return [_suggestion_dict(db, c, ["Arama"]) for c in rows]
+
+    # Otomatik öneri: telefon (son 10 hane) ve isim token örtüşmesi
+    my_phone = _norm_phone(contact.phone)
+    my_tokens = set(_name_tokens(contact))
+    scored = []
+    for c in base.all():
+        score = 0
+        reasons = []
+        if my_phone and _norm_phone(c.phone) == my_phone:
+            score += 100
+            reasons.append("Aynı telefon")
+        if my_tokens and (my_tokens & set(_name_tokens(c))):
+            score += 10
+            reasons.append("Benzer isim")
+        if score > 0:
+            scored.append((score, c, reasons))
+    scored.sort(key=lambda x: -x[0])
+    return [_suggestion_dict(db, c, reasons) for _s, c, reasons in scored[:10]]
+
+
+@router.post("/contacts/{contact_id}/link")
+def link_contact(contact_id: int, body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """İki kişiyi 'aynı kişi' olarak eşler (farklı platform şart, ikisi de bağsız olmalı)."""
+    other_id = body.get("other_contact_id")
+    if not other_id:
+        return {"error": "Eşleştirilecek kişi seçilmedi"}
+    if other_id == contact_id:
+        return {"error": "Bir kişi kendisiyle eşleştirilemez"}
+    a = db.query(Contact).filter(Contact.id == contact_id).first()
+    b = db.query(Contact).filter(Contact.id == other_id).first()
+    if not a or not b:
+        return {"error": "Kişi bulunamadı"}
+    if a.platform == b.platform:
+        return {"error": "Aynı platformdaki kişiler eşleştirilemez (farklı kanal olmalı)"}
+    if _get_link_row(db, a.id) or _get_link_row(db, b.id):
+        return {"error": "Kişilerden biri zaten başka bir hesaba bağlı"}
+
+    lo, hi = sorted([a.id, b.id])
+    db.add(ContactLink(contact_a_id=lo, contact_b_id=hi, created_by_user_id=current_user.id))
+    for c, other in ((a, b), (b, a)):
+        icon = "💬" if other.platform == "whatsapp" else "📸"
+        db.add(ActivityLog(
+            contact_id=c.id,
+            type="link",
+            title=f"{icon} Hesap bağlandı: {other.full_name or other.name}",
+            description=f"{other.platform} hesabıyla eşleştirildi",
+            created_by_user_id=current_user.id,
+            created_at=datetime.utcnow(),
+        ))
+    db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/contacts/{contact_id}/link")
+def unlink_contact(contact_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    link = _get_link_row(db, contact_id)
+    if not link:
+        return {"error": "Bağlı hesap yok"}
+    other_id = _linked_other_id(link, contact_id)
+    db.delete(link)
+    for cid in (contact_id, other_id):
+        if cid:
+            db.add(ActivityLog(
+                contact_id=cid,
+                type="unlink",
+                title="🔗 Hesap bağlantısı kaldırıldı",
+                created_by_user_id=current_user.id,
+                created_at=datetime.utcnow(),
+            ))
     db.commit()
     return {"status": "ok"}
 

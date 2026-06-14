@@ -52,11 +52,15 @@ async def _send_text(request, platform, recipient_id, text):
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
 
 @router.get("/conversations")
-def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, q: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, q: Optional[str] = None, platform: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
     base_query = db.query(Conversation).options(
         joinedload(Conversation.contact).joinedload(Contact.status)
     )
+
+    # Kanal (platform) filtresi: instagram | whatsapp
+    if platform in ("instagram", "whatsapp"):
+        base_query = base_query.filter(Conversation.platform == platform)
 
     # Arama: kişi adı / ad-soyad / telefon / e-posta
     if q:

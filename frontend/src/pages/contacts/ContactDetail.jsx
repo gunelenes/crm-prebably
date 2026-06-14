@@ -5,6 +5,7 @@ import api from "../../api";
 import { avatarUrl, platformIcon } from "../../utils";
 import StatusModal from "../../components/StatusModal";
 import ReminderModal from "../../components/ReminderModal";
+import LinkContactModal from "../../components/LinkContactModal";
 import ContactProfileTab from "./ContactProfileTab";
 import ContactMessagesTab from "./ContactMessagesTab";
 import ContactActivityTab from "./ContactActivityTab";
@@ -34,6 +35,7 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
   const [reminders, setReminders] = useState([]);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showLink, setShowLink] = useState(false);
 
   const loadAll = async () => {
     if (!contactId) return;
@@ -77,6 +79,12 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
 
   const refresh = () => { loadAll(); onChanged?.(); };
 
+  const unlink = async () => {
+    if (!window.confirm("Bağlı hesap kaldırılsın mı?")) return;
+    await api.delete(`/contacts/${contactId}/link`);
+    refresh();
+  };
+
   return (
     <section className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -104,6 +112,12 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
                     🎬 {profile.training_set.name}
                   </span>
                 )}
+                {profile?.linked_contact && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 flex items-center gap-1">
+                    🔗 {platformIcon(profile.linked_contact.platform)} {profile.linked_contact.full_name || profile.linked_contact.name}
+                    <button onClick={unlink} title="Bağlantıyı kaldır" className="ml-0.5 hover:text-red-500">✕</button>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -116,6 +130,12 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
               className="text-xs px-3 py-1.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-300 border border-orange-500/30">
               🔔 Hatırlatma
             </button>
+            {profile && !profile.linked_contact && (
+              <button onClick={() => setShowLink(true)}
+                className="text-xs px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-500/30">
+                🔗 Hesap bağla
+              </button>
+            )}
             <button onClick={() => navigate("/mesajlar")}
               className="text-xs px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30 hover:from-indigo-600 hover:to-violet-600">
               💬 Mesajlar'a Git
@@ -192,6 +212,13 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
           contactId={contactId}
           onClose={() => setShowReminderModal(false)}
           onSave={refresh}
+        />
+      )}
+      {showLink && profile && (
+        <LinkContactModal
+          contact={profile}
+          onClose={() => setShowLink(false)}
+          onLinked={refresh}
         />
       )}
     </section>
