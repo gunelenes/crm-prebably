@@ -67,11 +67,6 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
     onUpdate();
   };
 
-  const goToLinked = () => {
-    const lc = profile?.linked_contact;
-    if (lc?.last_conversation_id && onJumpToConversation) onJumpToConversation(lc);
-  };
-
   if (!contact) return (
     <div className="w-80 bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl border-l border-slate-200/60 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
       Kullanıcı seç
@@ -116,23 +111,30 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
           </button>
         </div>
 
-        {/* Bağlı kanal (IG ↔ WhatsApp eşleştirme) */}
+        {/* Kanallar (IG ↔ WhatsApp birleşik profil) */}
         {profile?.linked_contact ? (
-          <div className="mt-3 flex items-center gap-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/30">
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-sky-700 dark:text-sky-300 font-semibold">Bağlı kanal</div>
-              <div className="text-xs text-slate-700 dark:text-slate-200 truncate">
-                {platformIcon(profile.linked_contact.platform)} {profile.linked_contact.full_name || profile.linked_contact.name}
-              </div>
+          <div className="mt-3 p-2 rounded-lg bg-sky-500/10 border border-sky-500/30">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-wide text-sky-700 dark:text-sky-300 font-semibold">Kanallar (birleşik)</span>
+              <button onClick={unlink} title="Bağlantıyı kaldır"
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors">✕</button>
             </div>
-            {profile.linked_contact.last_conversation_id && onJumpToConversation && (
-              <button onClick={goToLinked} title="Sohbete git"
-                className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/30 transition-colors">
-                Sohbete git
-              </button>
-            )}
-            <button onClick={unlink} title="Bağlantıyı kaldır"
-              className="flex-shrink-0 text-xs px-1.5 py-1 rounded-lg text-slate-400 hover:text-red-500 transition-colors">✕</button>
+            <div className="space-y-1">
+              {(profile.channels || []).map((ch) => (
+                <div key={ch.id} className="flex items-center gap-2">
+                  <span className="flex-1 min-w-0 text-xs text-slate-700 dark:text-slate-200 truncate">
+                    {platformIcon(ch.platform)} {ch.full_name || ch.name}
+                    {ch.is_primary && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-indigo-500 text-white align-middle">Ana</span>}
+                  </span>
+                  {ch.id !== contact.id && ch.last_conversation_id && onJumpToConversation && (
+                    <button onClick={() => onJumpToConversation(ch)}
+                      className="flex-shrink-0 text-[11px] px-2 py-0.5 rounded-lg bg-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/30 transition-colors">
+                      Sohbete git
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <button onClick={() => setShowLink(true)}

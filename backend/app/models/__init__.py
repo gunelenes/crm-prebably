@@ -272,6 +272,7 @@ class ContactLink(Base):
     id                 = Column(Integer, primary_key=True, index=True)
     contact_a_id       = Column(Integer, ForeignKey("contacts.id"), nullable=False, index=True)
     contact_b_id       = Column(Integer, ForeignKey("contacts.id"), nullable=False, index=True)
+    primary_contact_id = Column(Integer, nullable=True)  # birleşik profilde 'ana' kayıt (kanonik)
     created_at         = Column(DateTime, default=datetime.utcnow)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     __table_args__ = (UniqueConstraint("contact_a_id", "contact_b_id", name="uq_contact_link"),)

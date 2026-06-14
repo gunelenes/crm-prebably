@@ -48,6 +48,14 @@ async def _auto_sync_loop():
 async def lifespan(app: FastAPI):
     global http_client, sync_http_client
     Base.metadata.create_all(bind=engine)
+    # Hafif şema evrimi: create_all mevcut tabloları ALTER etmez. Idempotent (IF NOT EXISTS).
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "ALTER TABLE contact_links ADD COLUMN IF NOT EXISTS primary_contact_id INTEGER"
+            )
+    except Exception as e:
+        print("Şema migration uyarısı:", e)
     http_client = httpx.AsyncClient(timeout=30.0)
     sync_http_client = httpx.Client(timeout=60.0)
     app.state.http = http_client

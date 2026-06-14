@@ -69,6 +69,52 @@ def _all_linked_ids(db):
         ids.add(l[0]); ids.add(l[1])
     return ids
 
+
+# --- Birleşik profil (v2): kanonik kayıt çözümlemesi ---
+
+def _canonical_id(db, contact_id):
+    """Bağlı çiftte 'ana' kaydı döner. Bağlı değilse contact_id'nin kendisi.
+    primary_contact_id boşsa fallback: Instagram olan, o da yoksa contact_a_id."""
+    link = _get_link_row(db, contact_id)
+    if not link:
+        return contact_id
+    if link.primary_contact_id in (link.contact_a_id, link.contact_b_id):
+        return link.primary_contact_id
+    a = db.query(Contact).filter(Contact.id == link.contact_a_id).first()
+    if a and a.platform == "instagram":
+        return a.id
+    b = db.query(Contact).filter(Contact.id == link.contact_b_id).first()
+    if b and b.platform == "instagram":
+        return b.id
+    return link.contact_a_id
+
+
+def _group_ids(db, contact_id):
+    """Bu kişiyle birleşik gruptaki tüm contact id'leri (bağlı değilse tek eleman)."""
+    link = _get_link_row(db, contact_id)
+    if not link:
+        return [contact_id]
+    return [link.contact_a_id, link.contact_b_id]
+
+
+def _channels(db, contact_id):
+    """Gruptaki tüm kanalların özetini döner (ana olan is_primary=True)."""
+    ids = _group_ids(db, contact_id)
+    primary = _canonical_id(db, contact_id)
+    out = []
+    for cid in ids:
+        c = db.query(Contact).filter(Contact.id == cid).first()
+        if c:
+            out.append({
+                "id": c.id,
+                "platform": c.platform,
+                "name": c.name,
+                "full_name": c.full_name,
+                "last_conversation_id": _last_conversation_id(db, c.id),
+                "is_primary": c.id == primary,
+            })
+    return out
+
 @router.get("/contacts/search")
 def search_contacts(
     q: str = "",
@@ -350,6 +396,7 @@ def update_contact_status(contact_id: int, body: dict = Body(...), current_user:
     try:
         print(f"Status güncelleme: contact_id={contact_id}, body={body}, user={current_user.id}")
 
+        contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe yaz
         contact = db.query(Contact).filter(Contact.id == contact_id).first()
         if not contact:
             return {"error": "Bulunamadı"}
@@ -426,21 +473,37 @@ def delete_reminder(contact_id: int, reminder_id: int, _: User = Depends(get_cur
 
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Birleşik profil: hangi kanal açılırsa açılsın KANONİK kaydın profili gösterilir.
+    requested_id = contact_id
+    linked = _get_link_row(db, requested_id)
+    canonical = _canonical_id(db, requested_id)
     contact = (db.query(Contact)
                .options(joinedload(Contact.status),
                         joinedload(Contact.sector),
                         joinedload(Contact.training_set),
                         joinedload(Contact.assigned_to_user))
-               .filter(Contact.id == contact_id)
+               .filter(Contact.id == canonical)
                .first())
     if not contact:
         return {"error": "Bulunamadı"}
+
+    # Telefon/e-posta kanonikte boşsa diğer kanaldan doldur (görüntü kolaylığı).
+    phone, email = contact.phone, contact.email
+    if linked and (not phone or not email):
+        for cid in _group_ids(db, requested_id):
+            if cid == contact.id:
+                continue
+            other = db.query(Contact).filter(Contact.id == cid).first()
+            if other:
+                phone = phone or other.phone
+                email = email or other.email
+
     return {
         "id": contact.id,
         "name": contact.name,
         "full_name": contact.full_name,
-        "phone": contact.phone,
-        "email": contact.email,
+        "phone": phone,
+        "email": email,
         "platform": contact.platform,
         "external_id": contact.external_id,
         "description": contact.description,
@@ -459,11 +522,14 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "assigned_to_user_id": contact.assigned_to_user_id,
         "assigned_to_user": {"id": contact.assigned_to_user.id, "full_name": contact.assigned_to_user.full_name, "username": contact.assigned_to_user.username} if contact.assigned_to_user else None,
         "created_at": iso_utc(contact.created_at),
-        "linked_contact": _linked_contact_summary(db, contact.id),
+        "linked_contact": _linked_contact_summary(db, requested_id),
+        "channels": _channels(db, requested_id),
+        "primary_contact_id": canonical if linked else None,
     }
 
 @router.put("/contacts/{contact_id}")
 def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe yaz
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         return {"error": "Bulunamadı"}
@@ -558,8 +624,13 @@ def link_contact(contact_id: int, body: dict = Body(...), current_user: User = D
     if _get_link_row(db, a.id) or _get_link_row(db, b.id):
         return {"error": "Kişilerden biri zaten başka bir hesaba bağlı"}
 
+    # Ana (kanonik) profil: kullanıcı seçer; geçersiz/boşsa Instagram olanı varsayılan yap.
+    primary = body.get("primary_contact_id")
+    if primary not in (a.id, b.id):
+        primary = a.id if a.platform == "instagram" else (b.id if b.platform == "instagram" else a.id)
+
     lo, hi = sorted([a.id, b.id])
-    db.add(ContactLink(contact_a_id=lo, contact_b_id=hi, created_by_user_id=current_user.id))
+    db.add(ContactLink(contact_a_id=lo, contact_b_id=hi, primary_contact_id=primary, created_by_user_id=current_user.id))
     for c, other in ((a, b), (b, a)):
         icon = "💬" if other.platform == "whatsapp" else "📸"
         db.add(ActivityLog(
@@ -598,7 +669,7 @@ def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Sessi
     logs = (db.query(ActivityLog)
             .options(joinedload(ActivityLog.created_by),
                      joinedload(ActivityLog.advisor_user))
-            .filter(ActivityLog.contact_id == contact_id)
+            .filter(ActivityLog.contact_id.in_(_group_ids(db, contact_id)))  # birleşik: grup
             .order_by(ActivityLog.created_at.desc())
             .all())
     return [{
@@ -616,7 +687,7 @@ def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Sess
     reminders = (db.query(Reminder)
                  .options(joinedload(Reminder.created_by),
                           joinedload(Reminder.advisor_user))
-                 .filter(Reminder.contact_id == contact_id)
+                 .filter(Reminder.contact_id.in_(_group_ids(db, contact_id)))  # birleşik: grup
                  .order_by(Reminder.remind_at.asc())
                  .all())
     return [{
@@ -632,6 +703,7 @@ def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Sess
 
 @router.post("/contacts/{contact_id}/reminders")
 def create_reminder(contact_id: int, body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe bağla
     advisor_user_id = body.get("advisor_user_id") or current_user.id
     reminder = Reminder(
         contact_id=contact_id,

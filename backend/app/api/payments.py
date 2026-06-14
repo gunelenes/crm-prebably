@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Payment, Contact, BankAccount, User
 from app.auth import get_current_user, require_admin
+from app.api.contacts import _canonical_id, _group_ids  # birleşik profil çözümlemesi
 from app.utils import iso_utc
 
 router = APIRouter()
@@ -74,7 +75,7 @@ def list_payments(
     if type in ("income", "expense"):
         base = base.filter(Payment.type == type)
     if contact_id:
-        base = base.filter(Payment.contact_id == contact_id)
+        base = base.filter(Payment.contact_id.in_(_group_ids(db, contact_id)))  # birleşik: grup
     if bank_account_id:
         base = base.filter(Payment.bank_account_id == bank_account_id)
     if date_from:
@@ -129,6 +130,8 @@ async def create_payment(
         raise HTTPException(400, "Geçersiz tip")
     if type == "income" and not contact_id:
         raise HTTPException(400, "Gelir kaydında kişi zorunlu")
+    if contact_id:
+        contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe bağla
     try:
         amount_dec = Decimal(amount)
     except InvalidOperation:
