@@ -16,20 +16,14 @@ function KpiCard({ icon, label, value, accent, sub }) {
 export default function AdsKpiCards({ overall }) {
   const o = overall || {};
   const cur = o.multi_currency ? "TRY" : (o.by_currency?.[0]?.currency || "TRY");
+  const cpConv = o.conversations ? (o.spend || 0) / o.conversations : null;
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard icon="💸" label="Toplam Harcama" value={fmtCurrency(o.spend, cur)} accent="text-rose-500"
-          sub={o.multi_currency ? "⚠️ Çoklu para birimi" : null} />
-        <KpiCard icon="💬" label="Konuşma (DM)" value={fmtNum(o.conversations)} accent="text-emerald-500" />
-        <KpiCard icon="🖱️" label="Tıklama" value={fmtNum(o.clicks)} accent="text-indigo-500" />
-        <KpiCard icon="📝" label="Kayıt" value={fmtNum(o.registrations)} accent="text-violet-500"
-          sub={o.matched_registrations != null ? `${fmtNum(o.matched_registrations)} eşleşti` : null} />
-        <KpiCard icon="🎯" label="Kayıt Başı Maliyet" value={o.cpa != null ? fmtCurrency(o.cpa, cur) : "—"} accent="text-amber-500" />
-      </div>
-      {o.cpa_note && (
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">ℹ️ {o.cpa_note}</p>
-      )}
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <KpiCard icon="💸" label="Toplam Harcama" value={fmtCurrency(o.spend, cur)} accent="text-rose-500"
+        sub={o.multi_currency ? "⚠️ Çoklu para birimi" : null} />
+      <KpiCard icon="💬" label="Konuşma (DM)" value={fmtNum(o.conversations)} accent="text-emerald-500" />
+      <KpiCard icon="🖱️" label="Tıklama" value={fmtNum(o.clicks)} accent="text-indigo-500" />
+      <KpiCard icon="🎯" label="Konuşma Başı Maliyet" value={cpConv != null ? fmtCurrency(cpConv, cur) : "—"} accent="text-amber-500" />
     </div>
   );
 }

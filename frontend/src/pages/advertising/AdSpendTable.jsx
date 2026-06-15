@@ -21,7 +21,8 @@ export default function AdSpendTable({ rows, loading }) {
             <th className="text-left font-semibold px-3 py-2.5">Kampanya / Ad Set</th>
             <th className="text-left font-semibold px-3 py-2.5">Kanal</th>
             <th className="text-right font-semibold px-3 py-2.5">Harcama</th>
-            <th className="text-right font-semibold px-3 py-2.5">Sonuç</th>
+            <th className="text-right font-semibold px-3 py-2.5" title="Kampanya amacına göre konuşma (DM) ya da tıklama">Sonuç</th>
+            <th className="text-right font-semibold px-3 py-2.5">Sonuç Başına</th>
             <th className="text-right font-semibold px-3 py-2.5">Tıklama</th>
           </tr>
         </thead>
@@ -39,6 +40,7 @@ export default function AdSpendTable({ rows, loading }) {
                 <td className="px-3 py-2 whitespace-nowrap">{ch.icon} {ch.label}</td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-800 dark:text-slate-100">{fmtCurrency(r.spend, r.currency)}</td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">{fmtNum(r.results)}</td>
+                <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">{r.results ? fmtCurrency(r.spend / r.results, r.currency) : "—"}</td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-500 dark:text-slate-400">{fmtNum(r.clicks)}</td>
               </tr>
             );

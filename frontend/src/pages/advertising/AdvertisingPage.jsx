@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../api";
 import AdsKpiCards from "./AdsKpiCards";
-import AdsRoasCards from "./AdsRoasCards";
 import AdsChannelCards from "./AdsChannelCards";
 import AdAccountCards from "./AdAccountCards";
+import AdsCampaignTable from "./AdsCampaignTable";
 import AdSpendTable from "./AdSpendTable";
-import RegistrationUploadModal from "./RegistrationUploadModal";
 import { todayISO, daysAgoISO } from "./format";
 
 export default function AdvertisingPage() {
@@ -16,9 +15,9 @@ export default function AdvertisingPage() {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null); // { type: 'ok'|'error', text }
-  const [showUpload, setShowUpload] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [account, setAccount] = useState(""); // "" = Tümü
+  const [campaign, setCampaign] = useState(""); // "" = Tümü
   const [status, setStatus] = useState(null); // /ads/status: son senkron + token durumu
 
   const fetchStatus = useCallback(() => {
@@ -36,6 +35,7 @@ export default function AdvertisingPage() {
       const sumParams = { from, to };
       const spendParams = { date_from: from, date_to: to, limit: 200 };
       if (account) { sumParams.account = account; spendParams.account = account; }
+      if (campaign) { sumParams.campaign = campaign; spendParams.campaign = campaign; }
       const [s, sp] = await Promise.all([
         api.get("/analytics/summary", { params: sumParams }),
         api.get("/ad-spend", { params: spendParams }),
@@ -47,7 +47,7 @@ export default function AdvertisingPage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to, account]);
+  }, [from, to, account, campaign]);
 
   useEffect(() => {
     const t = setTimeout(() => { fetchAll(); }, 200);
@@ -100,16 +100,12 @@ export default function AdvertisingPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Reklam Analizi</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Meta reklam harcamaları ve seminer kayıt istatistikleri</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Meta reklam harcamaları ve kampanya performansı</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleClear}
               className="py-2 px-4 rounded-xl text-sm font-medium transition-colors bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20">
               🗑️ Veriyi Temizle
-            </button>
-            <button onClick={() => setShowUpload(true)}
-              className="py-2 px-4 rounded-xl text-sm font-medium transition-colors bg-white/60 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-white/10">
-              📥 Kayıt Yükle (CSV)
             </button>
             <button onClick={handleSync} disabled={syncing}
               className="py-2 px-5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 disabled:opacity-60">
@@ -166,12 +162,32 @@ export default function AdvertisingPage() {
             <Preset label="Son 30g" onClick={() => { setFrom(daysAgoISO(30)); setTo(todayISO()); }} />
             <Preset label="Son 90g" onClick={() => { setFrom(daysAgoISO(90)); setTo(todayISO()); }} />
           </div>
+          {/* Kampanya seçimi (özet by_campaign'den doldurulur) */}
+          <div className="w-full flex items-center gap-3">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Kampanya</span>
+            <select value={campaign} onChange={(e) => setCampaign(e.target.value)} className={`${dateCls} flex-1 min-w-0`}>
+              <option value="">Tüm Kampanyalar</option>
+              {(summary?.by_campaign || []).map((c) => (
+                <option key={c.campaign_name} value={c.campaign_name}>{c.campaign_name}</option>
+              ))}
+            </select>
+            {campaign && (
+              <button onClick={() => setCampaign("")}
+                className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline whitespace-nowrap">filtreyi kaldır</button>
+            )}
+          </div>
         </div>
 
         <AdsKpiCards overall={summary?.overall} />
-        <AdsRoasCards overall={summary?.overall} />
         <AdsChannelCards byChannel={summary?.by_channel} />
         <AdAccountCards byAccount={summary?.by_account} />
+
+        <div>
+          <h3 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-2">
+            Kampanya Bazında {campaign ? "(satıra tıklayarak filtreyi değiştir)" : "(satıra tıklayarak filtrele)"}
+          </h3>
+          <AdsCampaignTable rows={summary?.by_campaign} selected={campaign} onSelect={setCampaign} />
+        </div>
 
         <div>
           <h3 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-2">
@@ -180,10 +196,6 @@ export default function AdvertisingPage() {
           <AdSpendTable rows={spendRows} loading={loading} />
         </div>
       </div>
-
-      {showUpload && (
-        <RegistrationUploadModal onClose={() => setShowUpload(false)} onUploaded={fetchAll} />
-      )}
     </div>
   );
 }

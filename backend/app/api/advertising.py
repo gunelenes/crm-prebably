@@ -717,6 +717,7 @@ def list_ad_spend(
     date_to: Optional[str] = None,
     account: Optional[str] = None,
     channel: Optional[str] = None,
+    campaign: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     _: User = Depends(require_admin),
@@ -736,6 +737,8 @@ def list_ad_spend(
         base = base.filter(AdSpend.account_act_id == account)
     if channel:
         base = base.filter(AdSpend.channel == channel)
+    if campaign:
+        base = base.filter(AdSpend.campaign_name == campaign)
     total = base.with_entities(func.count(AdSpend.id)).scalar() or 0
     rows = (base.order_by(AdSpend.date.desc(), AdSpend.id.desc())
             .limit(limit).offset(offset).all())
@@ -763,17 +766,22 @@ def analytics_summary(
     from_: Optional[str] = Query(None, alias="from"),
     to: Optional[str] = None,
     account: Optional[str] = None,
+    campaign: Optional[str] = None,
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     to_d = _parse_date(to) or date.today()
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     # Sadece Parametreler'de tanımlı hesaplar (yetim/otomatik-keşfedilmiş satırlar gizlenir)
-    spend_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d,
-                     AdSpend.account_act_id.in_(select(AdAccount.act_id))]
+    base_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d,
+                    AdSpend.account_act_id.in_(select(AdAccount.act_id))]
     if account:
-        spend_filters.append(AdSpend.account_act_id == account)
-    spend_range = tuple(spend_filters)
+        base_filters.append(AdSpend.account_act_id == account)
+    base_range = tuple(base_filters)            # kampanya filtresi UYGULANMAZ (kırılım/dropdown için)
+    spend_filters = list(base_filters)
+    if campaign:
+        spend_filters.append(AdSpend.campaign_name == campaign)
+    spend_range = tuple(spend_filters)          # kampanya filtresi UYGULANIR (overall/kanal/hesap)
 
     # --- hesap bazlı ---
     acc_rows = (db.query(
@@ -833,6 +841,30 @@ def analytics_summary(
             "conversations": results,
             "cost_per_conversation": (spend / results) if results else None,
         })
+
+    # --- kampanya bazlı (kampanya filtresi UYGULANMAZ; tüm kampanyalar listelenir) ---
+    camp_rows = (db.query(
+        AdSpend.campaign_name,
+        func.max(AdSpend.channel),
+        func.max(AdSpend.currency),
+        func.coalesce(func.sum(AdSpend.spend), 0),
+        func.coalesce(func.sum(AdSpend.clicks), 0),
+        func.coalesce(func.sum(AdSpend.results), 0),
+    ).filter(*base_range).group_by(AdSpend.campaign_name).all())
+    by_campaign = []
+    for cname, ch, currency, spend, clicks, results in camp_rows:
+        spend = float(spend or 0)
+        results = int(results or 0)
+        by_campaign.append({
+            "campaign_name": cname or "(isimsiz)",
+            "channel": ch or "other",
+            "currency": currency or "TRY",
+            "spend": spend,
+            "clicks": int(clicks or 0),
+            "results": results,
+            "cost_per_result": (spend / results) if results else None,
+        })
+    by_campaign.sort(key=lambda x: -x["spend"])
 
     # --- para birimi kırılımı ---
     cur_rows = (db.query(AdSpend.currency, func.coalesce(func.sum(AdSpend.spend), 0))
@@ -905,4 +937,5 @@ def analytics_summary(
         },
         "by_channel": by_channel,
         "by_account": by_account,
+        "by_campaign": by_campaign,
     }
