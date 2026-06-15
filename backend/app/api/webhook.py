@@ -153,7 +153,7 @@ async def save_message(db, sender_id, text, mid, platform, display_name=None, ph
         timestamp=datetime.utcnow()
     )
     db.add(new_message)
-    conversation.unread_count += 1
+    conversation.unread_count = Conversation.unread_count + 1  # atomik (eşzamanlı mesajda kaymaz)
     conversation.last_message_at = datetime.utcnow()
     db.commit()
     print(f"Mesaj kaydedildi: {sender_id} → {text} (yeni kullanıcı: {is_new})")
@@ -236,7 +236,7 @@ async def save_attachments(db, sender_id, attachments, mid, platform):
             timestamp=datetime.utcnow(),
         )
         db.add(msg)
-        conversation.unread_count += 1
+        conversation.unread_count = Conversation.unread_count + 1  # atomik (eşzamanlı mesajda kaymaz)
         conversation.last_message_at = datetime.utcnow()
 
         if msg_type in ("image", "audio"):

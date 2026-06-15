@@ -1,5 +1,14 @@
+import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+
+function PageFallback() {
+  return (
+    <div className="flex flex-1 items-center justify-center">
+      <div className="animate-spin border-4 border-indigo-500 border-t-transparent rounded-full w-8 h-8" />
+    </div>
+  );
+}
 
 export default function Layout() {
   return (
@@ -12,7 +21,9 @@ export default function Layout() {
       </div>
       <Sidebar />
       <main className="flex flex-1 overflow-hidden">
-        <Outlet />
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

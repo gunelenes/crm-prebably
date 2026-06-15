@@ -1,17 +1,20 @@
+import { lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/dashboard/DashboardPage";
-import MessagesPage from "./pages/MessagesPage";
-import ContactsPage from "./pages/contacts/ContactsPage";
-import PaymentsPage from "./pages/payments/PaymentsPage";
-import AdvertisingPage from "./pages/advertising/AdvertisingPage";
-import ReportsPage from "./pages/reports/ReportsPage";
-import RemindersPage from "./pages/RemindersPage";
-import QuickRepliesPage from "./pages/QuickRepliesPage";
-import ParametersPage from "./pages/parameters/ParametersPage";
-import UsersPage from "./pages/UsersPage";
+
+// Sayfalar lazy yüklenir → ilk bundle küçülür, her route ayrı chunk.
+const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const ContactsPage = lazy(() => import("./pages/contacts/ContactsPage"));
+const PaymentsPage = lazy(() => import("./pages/payments/PaymentsPage"));
+const AdvertisingPage = lazy(() => import("./pages/advertising/AdvertisingPage"));
+const ReportsPage = lazy(() => import("./pages/reports/ReportsPage"));
+const RemindersPage = lazy(() => import("./pages/RemindersPage"));
+const QuickRepliesPage = lazy(() => import("./pages/QuickRepliesPage"));
+const ParametersPage = lazy(() => import("./pages/parameters/ParametersPage"));
+const UsersPage = lazy(() => import("./pages/UsersPage"));
 
 export default function App() {
   return (
