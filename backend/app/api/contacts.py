@@ -35,6 +35,18 @@ def _last_conversation_id(db, contact_id):
     return conv.id if conv else None
 
 
+def _batch_last_conv_ids(db, contact_ids):
+    """{contact_id: en son conversation id} — N+1 yerine tek sorgu."""
+    ids = [c for c in set(contact_ids) if c]
+    if not ids:
+        return {}
+    rows = (db.query(Conversation.contact_id, func.max(Conversation.id))
+            .filter(Conversation.contact_id.in_(ids))
+            .group_by(Conversation.contact_id)
+            .all())
+    return {cid: conv_id for cid, conv_id in rows}
+
+
 def _linked_contact_summary(db, contact_id):
     """Bağlı kişinin özetini döner: {id, platform, name, full_name, last_conversation_id} | None."""
     other_id = _linked_other_id(_get_link_row(db, contact_id), contact_id)
@@ -101,16 +113,18 @@ def _channels(db, contact_id):
     """Gruptaki tüm kanalların özetini döner (ana olan is_primary=True)."""
     ids = _group_ids(db, contact_id)
     primary = _canonical_id(db, contact_id)
+    contacts = {c.id: c for c in db.query(Contact).filter(Contact.id.in_(ids)).all()}
+    conv_map = _batch_last_conv_ids(db, ids)
     out = []
     for cid in ids:
-        c = db.query(Contact).filter(Contact.id == cid).first()
+        c = contacts.get(cid)
         if c:
             out.append({
                 "id": c.id,
                 "platform": c.platform,
                 "name": c.name,
                 "full_name": c.full_name,
-                "last_conversation_id": _last_conversation_id(db, c.id),
+                "last_conversation_id": conv_map.get(c.id),
                 "is_primary": c.id == primary,
             })
     return out
@@ -593,14 +607,14 @@ def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(ge
     return {"status": "ok"}
 
 
-def _suggestion_dict(db, c, reasons):
+def _suggestion_dict(c, reasons, last_conv_id):
     return {
         "id": c.id,
         "platform": c.platform,
         "name": c.name,
         "full_name": c.full_name,
         "phone": c.phone,
-        "last_conversation_id": _last_conversation_id(db, c.id),
+        "last_conversation_id": last_conv_id,
         "reason": ", ".join(reasons) if reasons else None,
     }
 
@@ -631,7 +645,8 @@ def match_suggestions(contact_id: int, q: Optional[str] = None, _: User = Depend
             Contact.full_name.ilike(like),
             Contact.phone.ilike(like),
         )).limit(20).all()
-        return [_suggestion_dict(db, c, ["Arama"]) for c in rows]
+        conv_map = _batch_last_conv_ids(db, [c.id for c in rows])
+        return [_suggestion_dict(c, ["Arama"], conv_map.get(c.id)) for c in rows]
 
     # Otomatik öneri: telefon (son 10 hane) ve isim token örtüşmesi
     my_phone = _norm_phone(contact.phone)
@@ -649,7 +664,9 @@ def match_suggestions(contact_id: int, q: Optional[str] = None, _: User = Depend
         if score > 0:
             scored.append((score, c, reasons))
     scored.sort(key=lambda x: -x[0])
-    return [_suggestion_dict(db, c, reasons) for _s, c, reasons in scored[:10]]
+    top = scored[:10]
+    conv_map = _batch_last_conv_ids(db, [c.id for _s, c, _r in top])
+    return [_suggestion_dict(c, reasons, conv_map.get(c.id)) for _s, c, reasons in top]
 
 
 @router.post("/contacts/{contact_id}/link")

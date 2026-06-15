@@ -48,12 +48,22 @@ async def _auto_sync_loop():
 async def lifespan(app: FastAPI):
     global http_client, sync_http_client
     Base.metadata.create_all(bind=engine)
-    # Hafif şema evrimi: create_all mevcut tabloları ALTER etmez. Idempotent (IF NOT EXISTS).
+    # Hafif şema evrimi: create_all mevcut tabloları ALTER/index etmez. Idempotent (IF NOT EXISTS).
     try:
         with engine.begin() as conn:
             conn.exec_driver_sql(
                 "ALTER TABLE contact_links ADD COLUMN IF NOT EXISTS primary_contact_id INTEGER"
             )
+            # Sık kullanılan filtre/join kolonlarına index (mevcut tablolar için).
+            for ddl in (
+                "CREATE INDEX IF NOT EXISTS ix_conversations_contact_id ON conversations (contact_id)",
+                "CREATE INDEX IF NOT EXISTS ix_messages_conversation_id ON messages (conversation_id)",
+                "CREATE INDEX IF NOT EXISTS ix_messages_direction ON messages (direction)",
+                "CREATE INDEX IF NOT EXISTS ix_activity_logs_contact_id ON activity_logs (contact_id)",
+                "CREATE INDEX IF NOT EXISTS ix_reminders_contact_id ON reminders (contact_id)",
+                "CREATE INDEX IF NOT EXISTS ix_contacts_platform ON contacts (platform)",
+            ):
+                conn.exec_driver_sql(ddl)
     except Exception as e:
         print("Şema migration uyarısı:", e)
     http_client = httpx.AsyncClient(timeout=30.0)

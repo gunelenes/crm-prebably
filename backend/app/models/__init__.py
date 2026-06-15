@@ -47,7 +47,7 @@ class TrainingSet(Base):
 class Contact(Base):
     __tablename__ = "contacts"
     id                    = Column(Integer, primary_key=True, index=True)
-    platform              = Column(String(20))
+    platform              = Column(String(20), index=True)
     external_id           = Column(String(500), unique=True)
     name                  = Column(String(100))
     full_name             = Column(String(100), nullable=True)
@@ -80,7 +80,7 @@ class Contact(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
     id                  = Column(Integer, primary_key=True, index=True)
-    contact_id          = Column(Integer, ForeignKey("contacts.id"))
+    contact_id          = Column(Integer, ForeignKey("contacts.id"), index=True)
     platform            = Column(String(20))
     unread_count        = Column(Integer, default=0)
     last_message_at     = Column(DateTime, default=datetime.utcnow)
@@ -94,8 +94,8 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
     id                  = Column(Integer, primary_key=True, index=True)
-    conversation_id     = Column(Integer, ForeignKey("conversations.id"))
-    direction           = Column(String(10))
+    conversation_id     = Column(Integer, ForeignKey("conversations.id"), index=True)
+    direction           = Column(String(10), index=True)
     content             = Column(Text)
     message_type        = Column(String(20), default="text")
     platform            = Column(String(20))
@@ -114,7 +114,7 @@ class Message(Base):
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
     id                  = Column(Integer, primary_key=True, index=True)
-    contact_id          = Column(Integer, ForeignKey("contacts.id"))
+    contact_id          = Column(Integer, ForeignKey("contacts.id"), index=True)
     type                = Column(String(50))
     title               = Column(String(200))
     description         = Column(Text, nullable=True)
@@ -131,7 +131,7 @@ class ActivityLog(Base):
 class Reminder(Base):
     __tablename__ = "reminders"
     id                  = Column(Integer, primary_key=True, index=True)
-    contact_id          = Column(Integer, ForeignKey("contacts.id"))
+    contact_id          = Column(Integer, ForeignKey("contacts.id"), index=True)
     title               = Column(String(200))
     description         = Column(Text, nullable=True)
     remind_at           = Column(DateTime)
