@@ -9,6 +9,12 @@ INSTAGRAM_TOKEN = os.getenv("INSTAGRAM_TOKEN")
 INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID")
 INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET")
 WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN")
+# Kendi Instagram/Sayfa hesabımızın ID'si (giden/gelen ayrımı + sync katılımcı filtresi).
+INSTAGRAM_PAGE_ID = os.getenv("INSTAGRAM_PAGE_ID", "17841401244343060")
+# sync-conversations: bu tarihten (YYYY-MM-DD) önceki mesajlar atlanır.
+SYNC_CUTOFF_DATE = os.getenv("SYNC_CUTOFF_DATE", "2026-05-15")
+# CORS: virgülle ayrık izinli origin listesi; boşsa "*" (geriye dönük uyum).
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
 # Meta'nın giden ses dosyalarını çekebilmesi için herkese açık (public) HTTPS taban adresi.
 # Sonunda /api OLMADAN verilmeli — örn. https://crm-prebably-production.up.railway.app
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://crm-prebably-production.up.railway.app")

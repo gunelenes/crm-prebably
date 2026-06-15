@@ -1,11 +1,29 @@
+import hmac
+import hashlib
+import json
 from fastapi import APIRouter, Request, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.config import WEBHOOK_VERIFY_TOKEN
-from app.models import Contact, Conversation, Message
+from app.config import WEBHOOK_VERIFY_TOKEN, INSTAGRAM_PAGE_ID, SYNC_CUTOFF_DATE
+from app.models import Contact, Conversation, Message, User
+from app.auth import get_current_user, require_admin
 from datetime import datetime, timedelta
 
 router = APIRouter()
+
+
+def _verify_signature(raw: bytes, header: str) -> bool:
+    """Meta webhook gövdesini X-Hub-Signature-256 (app secret HMAC) ile doğrular.
+    INSTAGRAM_APP_SECRET tanımlı değilse doğrulama atlanır (geriye dönük uyum)."""
+    from app.config import INSTAGRAM_APP_SECRET
+    if not INSTAGRAM_APP_SECRET:
+        print("UYARI: INSTAGRAM_APP_SECRET yok — webhook imza doğrulaması atlandı")
+        return True
+    if not header or not header.startswith("sha256="):
+        return False
+    expected = hmac.new(INSTAGRAM_APP_SECRET.encode(), raw, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header.split("=", 1)[1])
 
 async def get_instagram_username(sender_id: str) -> str:
     from app.config import INSTAGRAM_TOKEN
@@ -235,13 +253,20 @@ def verify_webhook(request: Request):
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
-    if mode == "subscribe" and token == WEBHOOK_VERIFY_TOKEN:
+    if mode == "subscribe" and token == WEBHOOK_VERIFY_TOKEN and challenge and challenge.isdigit():
         return int(challenge)
-    return {"error": "Doğrulama başarısız"}
+    return JSONResponse({"error": "Doğrulama başarısız"}, status_code=403)
 
 @router.post("/webhook")
 async def receive_webhook(request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+    raw = await request.body()
+    if not _verify_signature(raw, request.headers.get("X-Hub-Signature-256", "")):
+        print("Webhook imza doğrulaması BAŞARISIZ — istek reddedildi")
+        return JSONResponse({"error": "imza geçersiz"}, status_code=403)
+    try:
+        body = json.loads(raw or b"{}")
+    except Exception:
+        return JSONResponse({"error": "geçersiz gövde"}, status_code=400)
     print("Gelen webhook:", body)
 
     if body.get("object") == "instagram":
@@ -329,14 +354,14 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 @router.get("/test-instagram")
-async def test_instagram(request: Request):
+async def test_instagram(request: Request, _: User = Depends(require_admin)):
     from app.config import INSTAGRAM_TOKEN
     url = f"https://graph.instagram.com/v19.0/me?fields=id,name&access_token={INSTAGRAM_TOKEN}"
     response = await request.app.state.http.get(url)
     return response.json()
 
 @router.get("/test-whatsapp")
-async def test_whatsapp(request: Request):
+async def test_whatsapp(request: Request, _: User = Depends(require_admin)):
     """WhatsApp token + Phone ID teşhisi (mesaj göndermeden).
 
     display_phone_number/verified_name dönerse → token + Phone ID geçerli.
@@ -354,7 +379,7 @@ async def test_whatsapp(request: Request):
     return response.json()
 
 @router.get("/test-conversations")
-async def test_conversations(request: Request):
+async def test_conversations(request: Request, _: User = Depends(require_admin)):
     from app.config import INSTAGRAM_TOKEN
     url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants&access_token={INSTAGRAM_TOKEN}"
     response = await request.app.state.http.get(url)
@@ -457,13 +482,16 @@ async def test_conversations(request: Request):
 #     return {"status": "ok", "synced": synced}
 
 @router.post("/sync-conversations")
-def sync_conversations(request: Request, db: Session = Depends(get_db)):
+def sync_conversations(request: Request, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.config import INSTAGRAM_TOKEN
     from datetime import timezone
     import dateutil.parser
 
-    # 15 Mayıs 2026 Cuma başlangıç tarihi
-    start_date = datetime(2026, 5, 15, 0, 0, 0)
+    # Kesim tarihi: bu tarihten önceki mesajlar atlanır (SYNC_CUTOFF_DATE).
+    try:
+        start_date = datetime.fromisoformat(SYNC_CUTOFF_DATE)
+    except Exception:
+        start_date = datetime(2026, 5, 15, 0, 0, 0)
 
     synced = 0
     skipped = 0
@@ -485,7 +513,7 @@ def sync_conversations(request: Request, db: Session = Depends(get_db)):
             # Karşı tarafı bul
             other = None
             for p in participants:
-                if p.get("id") != "17841401244343060":
+                if p.get("id") != INSTAGRAM_PAGE_ID:
                     other = p
                     break
 
@@ -540,7 +568,7 @@ def sync_conversations(request: Request, db: Session = Depends(get_db)):
                 ).first()
 
                 sender = msg.get("from", {})
-                direction = "outbound" if sender.get("id") == "17841401244343060" else "inbound"
+                direction = "outbound" if sender.get("id") == INSTAGRAM_PAGE_ID else "inbound"
 
                 # external_id NULL olan eski satırlar için yedek eşleştirme (content + ±2dk pencere)
                 if not existing:
@@ -594,7 +622,7 @@ def sync_conversations(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/backfill-usernames")
-def backfill_usernames(request: Request, db: Session = Depends(get_db)):
+def backfill_usernames(request: Request, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Tek seferlik: mevcut Instagram kişilerinin `name` alanını kullanıcı adıyla (@handle) günceller.
 
     Elle verilen isimler `full_name`'de tutulduğu ve görüntü `full_name or name`

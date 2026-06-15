@@ -204,7 +204,7 @@ def update_payment(
 
 
 @router.delete("/payments/{payment_id}")
-def delete_payment(payment_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_payment(payment_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     p = db.query(Payment).filter(Payment.id == payment_id).first()
     if not p:
         return {"error": "Bulunamadı"}

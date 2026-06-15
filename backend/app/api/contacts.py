@@ -750,11 +750,15 @@ def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Sess
 def create_reminder(contact_id: int, body: dict = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe bağla
     advisor_user_id = body.get("advisor_user_id") or current_user.id
+    try:
+        remind_at = datetime.fromisoformat(body.get("remind_at") or "")
+    except (ValueError, TypeError):
+        return {"error": "Geçersiz veya eksik hatırlatma tarihi"}
     reminder = Reminder(
         contact_id=contact_id,
         title=body.get("title"),
         description=body.get("description"),
-        remind_at=datetime.fromisoformat(body.get("remind_at")),
+        remind_at=remind_at,
         advisor_user_id=advisor_user_id,
         created_by_user_id=current_user.id,
     )

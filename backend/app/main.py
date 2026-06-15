@@ -93,9 +93,13 @@ app.state.sio = sio
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
+# CORS: ALLOWED_ORIGINS (virgülle ayrık) tanımlıysa onunla kısıtla; boşsa "*" (geriye dönük uyum).
+from app.config import ALLOWED_ORIGINS
+_origins = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()] or ["*"]
+
 socket_app = CORSMiddleware(
     socket_app,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
