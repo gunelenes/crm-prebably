@@ -16,7 +16,6 @@ const defaultFilters = {
   purchasePotential: null,    // null | 'düşük' | 'orta' | 'yüksek'
   waitingForReply: null,      // null | true | false
   platform: null,             // null | 'instagram' | 'whatsapp'
-  merged: true,               // bağlı çiftleri tek satır göster (varsayılan açık)
   sortBy: "last_message_at",
   sortDir: "desc",
 };
@@ -54,8 +53,7 @@ export default function ContactsPage() {
     if (f.purchased !== null) params.purchased = f.purchased;
     if (f.purchasePotential) params.purchase_potential = f.purchasePotential;
     if (f.waitingForReply !== null) params.waiting_for_reply = f.waitingForReply;
-    if (f.merged) params.merged = true;
-    else if (f.platform) params.platform = f.platform;  // birleşik modda kanal filtresi yok sayılır
+    if (f.platform) params.platform = f.platform;
     return params;
   }, []);
 

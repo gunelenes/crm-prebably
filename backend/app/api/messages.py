@@ -7,7 +7,8 @@ from app.database import get_db
 from app.models import Contact, Conversation, Message, User, QuickReply
 from app.auth import get_current_user, decode_token
 from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL, WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
-from app.utils import iso_utc
+from app.queries import waiting_conversations_q
+from app.utils import iso_utc, serialize_status
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -74,30 +75,9 @@ def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optio
             )
         )
 
-    # "Cevap bekliyor" filtresi (server-side) — son mesajı inbound + dismiss edilmemiş.
-    # contacts.py search_contacts'taki desenin aynısı, sadece Conversation.id seçiyor.
+    # "Cevap bekliyor" filtresi (server-side) — ortak helper (app/queries.py).
     if waiting_for_reply is not None:
-        max_msg_subq = (
-            db.query(
-                Message.conversation_id.label("conv_id"),
-                func.max(Message.id).label("max_id"),
-            )
-            .group_by(Message.conversation_id)
-            .subquery()
-        )
-        waiting_conv_ids = (
-            db.query(Conversation.id)
-            .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
-            .join(Message, Message.id == max_msg_subq.c.max_id)
-            .filter(
-                Message.direction == "inbound",
-                or_(
-                    Conversation.reply_dismissed_at.is_(None),
-                    Conversation.reply_dismissed_at < Message.timestamp,
-                ),
-            )
-            .distinct()
-        )
+        waiting_conv_ids = waiting_conversations_q(db).with_entities(Conversation.id).distinct()
         if waiting_for_reply:
             base_query = base_query.filter(Conversation.id.in_(waiting_conv_ids))
         else:
@@ -148,11 +128,7 @@ def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optio
                 "phone": conv.contact.phone,
                 "external_id": conv.contact.external_id,
                 "status_id": conv.contact.status_id,
-                "status": {
-                    "id": conv.contact.status.id,
-                    "name": conv.contact.status.name,
-                    "color": conv.contact.status.color
-                } if conv.contact.status else None,
+                "status": serialize_status(conv.contact.status),
             },
             "last_message": last_content,
             "last_message_direction": last_direction,

@@ -112,8 +112,9 @@ export default function MessagesPage() {
     api.get("/sectors").then((r) => setSectors(r.data));
     api.get("/training-sets").then((r) => setTrainingSets(r.data));
     checkReminders();
-    const interval = setInterval(fetchConversations, 10000);
-    const reminderInterval = setInterval(checkReminders, 60000);
+    // Socket 'new_message' anlık güncelliyor; bu interval yalnızca güvenlik ağı (kaçan event / reconnect).
+    const interval = setInterval(fetchConversations, 30000);
+    const reminderInterval = setInterval(checkReminders, 120000);
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
   }, []);
 

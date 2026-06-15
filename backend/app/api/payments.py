@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import Payment, Contact, BankAccount, User
 from app.auth import get_current_user, require_admin
 from app.api.contacts import _canonical_id, _group_ids  # birleşik profil çözümlemesi
-from app.utils import iso_utc
+from app.utils import iso_utc, serialize_user
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ def _serialize(p: Payment) -> dict:
         "document_mime": p.document_mime,
         "document_size": p.document_size,
         "created_at": iso_utc(p.created_at),
-        "created_by": {"id": p.created_by.id, "full_name": p.created_by.full_name, "username": p.created_by.username} if p.created_by else None,
+        "created_by": serialize_user(p.created_by),
     }
 
 

@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User, ContactLink
 from app.auth import get_current_user
-from app.utils import iso_utc
+from app.queries import waiting_conversations_q
+from app.utils import iso_utc, serialize_user, serialize_status
 from datetime import datetime
 
 router = APIRouter()
@@ -226,29 +227,8 @@ def search_contacts(
         base_query = base_query.filter(~Contact.id.in_(list(sec_to_canon.keys())))  # ikincilleri gizle
 
     if waiting_for_reply is not None:
-        # Cevap bekleyen contact'lar:
-        # En az bir conversation'ında son mesaj inbound + dismiss edilmemiş
-        max_msg_subq = (
-            db.query(
-                Message.conversation_id.label("conv_id"),
-                func.max(Message.id).label("max_id"),
-            )
-            .group_by(Message.conversation_id)
-            .subquery()
-        )
-        waiting_contact_ids = (
-            db.query(Conversation.contact_id)
-            .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
-            .join(Message, Message.id == max_msg_subq.c.max_id)
-            .filter(
-                Message.direction == "inbound",
-                or_(
-                    Conversation.reply_dismissed_at.is_(None),
-                    Conversation.reply_dismissed_at < Message.timestamp,
-                ),
-            )
-            .distinct()
-        )
+        # Cevap bekleyen contact'lar — ortak helper (app/queries.py).
+        waiting_contact_ids = waiting_conversations_q(db).with_entities(Conversation.contact_id).distinct()
         if merged and sec_to_canon:
             # Bir kanal bile bekliyorsa kanonik satır "bekliyor" sayılsın.
             mapped = set(sec_to_canon.get(cid, cid) for (cid,) in waiting_contact_ids.all())
@@ -319,7 +299,7 @@ def search_contacts(
             "purchased": contact.purchased,
             "had_training": contact.had_training,
             "knows_us": contact.knows_us,
-            "status": {"id": contact.status.id, "name": contact.status.name, "color": contact.status.color} if contact.status else None,
+            "status": serialize_status(contact.status),
             "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
             "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
             "last_message_at": iso_utc(last_msg_at),
@@ -344,7 +324,7 @@ def get_active_reminders(_: User = Depends(get_current_user), db: Session = Depe
         "contact_name": (r.contact.full_name or r.contact.name) if r.contact else None,
         "title": r.title,
         "remind_at": iso_utc(r.remind_at),
-        "advisor_user": {"id": r.advisor_user.id, "full_name": r.advisor_user.full_name, "username": r.advisor_user.username} if r.advisor_user else None,
+        "advisor_user": serialize_user(r.advisor_user),
     } for r in reminders]
 
 
@@ -415,8 +395,8 @@ def search_reminders(
         "description": r.description,
         "remind_at": iso_utc(r.remind_at),
         "is_done": r.is_done,
-        "advisor_user": {"id": r.advisor_user.id, "full_name": r.advisor_user.full_name, "username": r.advisor_user.username} if r.advisor_user else None,
-        "created_by": {"id": r.created_by.id, "full_name": r.created_by.full_name, "username": r.created_by.username} if r.created_by else None,
+        "advisor_user": serialize_user(r.advisor_user),
+        "created_by": serialize_user(r.created_by),
         "created_at": iso_utc(r.created_at),
     } for r in rows]
 
@@ -447,7 +427,7 @@ def get_today_reminders(_: User = Depends(get_current_user), db: Session = Depen
         "description": r.description,
         "remind_at": iso_utc(r.remind_at),
         "is_done": r.is_done,
-        "advisor_user": {"id": r.advisor_user.id, "full_name": r.advisor_user.full_name, "username": r.advisor_user.username} if r.advisor_user else None,
+        "advisor_user": serialize_user(r.advisor_user),
     } for r in reminders]
 
 @router.put("/contacts/{contact_id}/status")
@@ -573,13 +553,13 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "purchased": contact.purchased,
         "reason_not_purchased": contact.reason_not_purchased,
         "status_id": contact.status_id,
-        "status": {"id": contact.status.id, "name": contact.status.name, "color": contact.status.color} if contact.status else None,
+        "status": serialize_status(contact.status),
         "sector_id": contact.sector_id,
         "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
         "training_set_id": contact.training_set_id,
         "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
         "assigned_to_user_id": contact.assigned_to_user_id,
-        "assigned_to_user": {"id": contact.assigned_to_user.id, "full_name": contact.assigned_to_user.full_name, "username": contact.assigned_to_user.username} if contact.assigned_to_user else None,
+        "assigned_to_user": serialize_user(contact.assigned_to_user),
         "created_at": iso_utc(contact.created_at),
         "linked_contact": _linked_contact_summary(db, requested_id),
         "channels": _channels(db, requested_id),
@@ -739,9 +719,9 @@ def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Sessi
         "type": l.type,
         "title": l.title,
         "description": l.description,
-        "advisor_user": {"id": l.advisor_user.id, "full_name": l.advisor_user.full_name, "username": l.advisor_user.username} if l.advisor_user else None,
+        "advisor_user": serialize_user(l.advisor_user),
         "created_at": iso_utc(l.created_at),
-        "created_by": {"id": l.created_by.id, "full_name": l.created_by.full_name, "username": l.created_by.username} if l.created_by else None,
+        "created_by": serialize_user(l.created_by),
     } for l in logs]
 
 @router.get("/contacts/{contact_id}/reminders")
@@ -758,9 +738,9 @@ def get_reminders(contact_id: int, _: User = Depends(get_current_user), db: Sess
         "description": r.description,
         "remind_at": iso_utc(r.remind_at),
         "is_done": r.is_done,
-        "advisor_user": {"id": r.advisor_user.id, "full_name": r.advisor_user.full_name, "username": r.advisor_user.username} if r.advisor_user else None,
+        "advisor_user": serialize_user(r.advisor_user),
         "created_at": iso_utc(r.created_at),
-        "created_by": {"id": r.created_by.id, "full_name": r.created_by.full_name, "username": r.created_by.username} if r.created_by else None,
+        "created_by": serialize_user(r.created_by),
     } for r in reminders]
 
 @router.post("/contacts/{contact_id}/reminders")

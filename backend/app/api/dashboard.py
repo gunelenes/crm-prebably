@@ -10,7 +10,8 @@ from app.models import (
     User, Status, Contact, Conversation, Message,
     Reminder, ActivityLog, Payment, AdSpend, AdAccount,
 )
-from app.utils import iso_utc
+from app.queries import waiting_conversations_q
+from app.utils import iso_utc, serialize_user
 
 router = APIRouter()
 
@@ -63,29 +64,9 @@ def dashboard_summary(
                                 Reminder.remind_at < today_end_utc)
                         .scalar() or 0)
 
-    # Cevap bekleyen konuşma sayısı:
-    #   - Son mesaj inbound
-    #   - reply_dismissed_at NULL veya son mesajdan önce (yani dismiss güncellenmemiş)
-    max_msg_subq = (
-        db.query(
-            Message.conversation_id.label("conv_id"),
-            func.max(Message.id).label("max_id"),
-        )
-        .group_by(Message.conversation_id)
-        .subquery()
-    )
+    # Cevap bekleyen konuşma sayısı — ortak helper (app/queries.py).
     waiting_replies = (
-        db.query(func.count(Conversation.id))
-        .join(max_msg_subq, max_msg_subq.c.conv_id == Conversation.id)
-        .join(Message, Message.id == max_msg_subq.c.max_id)
-        .filter(
-            Message.direction == "inbound",
-            or_(
-                Conversation.reply_dismissed_at.is_(None),
-                Conversation.reply_dismissed_at < Message.timestamp,
-            ),
-        )
-        .scalar()
+        waiting_conversations_q(db).with_entities(func.count(Conversation.id)).scalar()
     ) or 0
 
     today = {
@@ -147,11 +128,7 @@ def dashboard_summary(
             "title": a.title,
             "description": a.description,
             "contact": {"id": a.contact.id, "name": a.contact.full_name or a.contact.name} if a.contact else None,
-            "created_by": {
-                "id": a.created_by.id,
-                "full_name": a.created_by.full_name,
-                "username": a.created_by.username,
-            } if a.created_by else None,
+            "created_by": serialize_user(a.created_by),
             "advisor": a.advisor,
             "created_at": iso_utc(a.created_at),
         })
