@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 from fastapi import APIRouter, Depends, Body
-from sqlalchemy import func, desc, asc, or_
+from sqlalchemy import func, desc, asc, or_, case
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Message, User, ContactLink
@@ -126,6 +126,7 @@ def search_contacts(
     purchase_potential: Optional[str] = None,
     waiting_for_reply: Optional[bool] = None,
     platform: Optional[str] = None,
+    merged: Optional[bool] = None,
     sort_by: str = "last_message_at",
     sort_dir: str = "desc",
     limit: int = 50,
@@ -135,15 +136,43 @@ def search_contacts(
 ):
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
+    merged = bool(merged)
 
-    # contact id → en son conversation (last_message_at + conv id)
+    # Birleşik (tekilleştirilmiş) mod: bağlı çiftin İKİNCİL kaydını gizle, mesajları
+    # KANONİK kayda topla (sıralama/önizleme/bekleme grup-bazlı olsun).
+    sec_to_canon = {}          # secondary_id -> canonical_id (gizlenecekler)
+    canon_other_platform = {}  # canonical_id -> diğer kanalın platformu (rozet için)
+    if merged:
+        links = db.query(ContactLink).all()
+        link_ids = set()
+        for l in links:
+            link_ids.add(l.contact_a_id); link_ids.add(l.contact_b_id)
+        plat = {}
+        if link_ids:
+            for cid, p in db.query(Contact.id, Contact.platform).filter(Contact.id.in_(link_ids)).all():
+                plat[cid] = p
+        for l in links:
+            canon = l.primary_contact_id if l.primary_contact_id in (l.contact_a_id, l.contact_b_id) else None
+            if canon is None:
+                canon = l.contact_a_id if plat.get(l.contact_a_id) == "instagram" else (
+                    l.contact_b_id if plat.get(l.contact_b_id) == "instagram" else l.contact_a_id)
+            other = l.contact_b_id if canon == l.contact_a_id else l.contact_a_id
+            sec_to_canon[other] = canon
+            canon_other_platform[canon] = plat.get(other)
+
+    # contact id → en son conversation. Merged'de ikincilin konuşmaları kanoniğe map'lenir.
+    if merged and sec_to_canon:
+        whens = [(Conversation.contact_id == sec, canon) for sec, canon in sec_to_canon.items()]
+        eff_id = case(*whens, else_=Conversation.contact_id)
+    else:
+        eff_id = Conversation.contact_id
     last_conv_subq = (
         db.query(
-            Conversation.contact_id.label("contact_id"),
+            eff_id.label("contact_id"),
             func.max(Conversation.last_message_at).label("last_msg_at"),
             func.max(Conversation.id).label("conv_id"),
         )
-        .group_by(Conversation.contact_id)
+        .group_by(eff_id)
         .subquery()
     )
 
@@ -177,8 +206,10 @@ def search_contacts(
         base_query = base_query.filter(Contact.purchased == purchased)
     if purchase_potential:
         base_query = base_query.filter(Contact.purchase_potential == purchase_potential)
-    if platform in ("instagram", "whatsapp"):
+    if platform in ("instagram", "whatsapp") and not merged:
         base_query = base_query.filter(Contact.platform == platform)
+    if merged and sec_to_canon:
+        base_query = base_query.filter(~Contact.id.in_(list(sec_to_canon.keys())))  # ikincilleri gizle
 
     if waiting_for_reply is not None:
         # Cevap bekleyen contact'lar:
@@ -204,10 +235,16 @@ def search_contacts(
             )
             .distinct()
         )
-        if waiting_for_reply:
-            base_query = base_query.filter(Contact.id.in_(waiting_contact_ids))
+        if merged and sec_to_canon:
+            # Bir kanal bile bekliyorsa kanonik satır "bekliyor" sayılsın.
+            mapped = set(sec_to_canon.get(cid, cid) for (cid,) in waiting_contact_ids.all())
+            cond = Contact.id.in_(mapped)
         else:
-            base_query = base_query.filter(~Contact.id.in_(waiting_contact_ids))
+            cond = Contact.id.in_(waiting_contact_ids)
+        if waiting_for_reply:
+            base_query = base_query.filter(cond)
+        else:
+            base_query = base_query.filter(~cond)
 
     # Sıralama
     direction = desc if sort_dir != "asc" else asc
@@ -251,6 +288,10 @@ def search_contacts(
         preview = last_msg_by_conv.get(conv_id)
         if preview and len(preview) > 80:
             preview = preview[:80] + "…"
+        platforms = [contact.platform]
+        other_p = canon_other_platform.get(contact.id)
+        if other_p:
+            platforms.append(other_p)
         items.append({
             "id": contact.id,
             "name": contact.name,
@@ -258,6 +299,7 @@ def search_contacts(
             "phone": contact.phone,
             "email": contact.email,
             "platform": contact.platform,
+            "platforms": platforms,
             "assigned_to": contact.assigned_to,
             "purchase_potential": contact.purchase_potential,
             "purchased": contact.purchased,

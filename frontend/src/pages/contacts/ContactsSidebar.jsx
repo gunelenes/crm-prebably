@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { avatarUrl, formatTime } from "../../utils";
+import { avatarUrl, formatTime, platformIcon } from "../../utils";
 import { ConversationSkeleton } from "../../components/Skeletons";
 import ContactsFilters from "./ContactsFilters";
 
@@ -89,7 +89,12 @@ export default function ContactsSidebar({
                 <img src={avatarUrl(c.full_name || c.name)} className="w-10 h-10 rounded-full flex-shrink-0 ring-2 ring-white/60 dark:ring-white/10" alt="" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">{c.full_name || c.name}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate min-w-0 flex items-center gap-1">
+                      <span className="flex-shrink-0" title={(c.platforms || [c.platform]).join(", ")}>
+                        {(c.platforms || [c.platform]).filter(Boolean).map(platformIcon).join("")}
+                      </span>
+                      <span className="truncate">{c.full_name || c.name}</span>
+                    </span>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(c.last_message_at)}</span>
                   </div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.phone || c.last_message_preview || "—"}</div>

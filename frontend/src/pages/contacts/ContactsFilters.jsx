@@ -34,6 +34,7 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
     purchasePotential: null,
     waitingForReply: null,
     platform: null,
+    merged: filters.merged,
     sortBy: filters.sortBy,
     sortDir: filters.sortDir,
   });
@@ -46,6 +47,16 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
         <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Filtreler</div>
         <button onClick={clearAll} className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline">Temizle</button>
       </div>
+
+      {/* Birleşik göster: bağlı IG+WhatsApp çiftlerini tek satırda göster */}
+      <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-sky-500/5 border border-sky-500/20 cursor-pointer">
+        <span className="text-[11px] text-slate-600 dark:text-slate-300">
+          🔗 Birleşik göster <span className="text-slate-400 dark:text-slate-500">(bağlı hesaplar tek satır)</span>
+        </span>
+        <input type="checkbox" checked={!!filters.merged}
+          onChange={(e) => update({ merged: e.target.checked, platform: e.target.checked ? null : filters.platform })}
+          className="accent-sky-500 w-4 h-4" />
+      </label>
 
       <div>
         <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Statü</div>
@@ -88,8 +99,10 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
           className={`${inputCls} w-full`} />
       </div>
 
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Kanal</div>
+      <div className={filters.merged ? "opacity-40 pointer-events-none" : ""}>
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+          Kanal{filters.merged && <span className="normal-case tracking-normal"> · birleşik modda kapalı</span>}
+        </div>
         <div className="flex flex-wrap gap-1">
           <Pill active={filters.platform === null} onClick={() => update({ platform: null })}>Tümü</Pill>
           <Pill active={filters.platform === "instagram"} onClick={() => update({ platform: "instagram" })}>📸 Instagram</Pill>
