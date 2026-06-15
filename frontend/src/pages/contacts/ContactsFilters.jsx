@@ -33,6 +33,7 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
     purchased: null,
     purchasePotential: null,
     waitingForReply: null,
+    platform: null,
     sortBy: filters.sortBy,
     sortDir: filters.sortDir,
   });
@@ -85,6 +86,15 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
         <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sorumlu Danışman</div>
         <input value={filters.assignedTo} onChange={(e) => update({ assignedTo: e.target.value })} placeholder="Tümü"
           className={`${inputCls} w-full`} />
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Kanal</div>
+        <div className="flex flex-wrap gap-1">
+          <Pill active={filters.platform === null} onClick={() => update({ platform: null })}>Tümü</Pill>
+          <Pill active={filters.platform === "instagram"} onClick={() => update({ platform: "instagram" })}>📸 Instagram</Pill>
+          <Pill active={filters.platform === "whatsapp"} onClick={() => update({ platform: "whatsapp" })}>💬 WhatsApp</Pill>
+        </div>
       </div>
 
       <div>

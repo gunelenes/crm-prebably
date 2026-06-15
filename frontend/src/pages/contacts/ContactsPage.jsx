@@ -15,6 +15,7 @@ const defaultFilters = {
   purchased: null,            // null | true | false
   purchasePotential: null,    // null | 'düşük' | 'orta' | 'yüksek'
   waitingForReply: null,      // null | true | false
+  platform: null,             // null | 'instagram' | 'whatsapp'
   sortBy: "last_message_at",
   sortDir: "desc",
 };
@@ -52,6 +53,7 @@ export default function ContactsPage() {
     if (f.purchased !== null) params.purchased = f.purchased;
     if (f.purchasePotential) params.purchase_potential = f.purchasePotential;
     if (f.waitingForReply !== null) params.waiting_for_reply = f.waitingForReply;
+    if (f.platform) params.platform = f.platform;
     return params;
   }, []);
 

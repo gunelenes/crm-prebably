@@ -18,7 +18,8 @@ export default function ContactsSidebar({
     (filters.assignedTo ? 1 : 0) +
     (filters.purchased !== null ? 1 : 0) +
     (filters.purchasePotential ? 1 : 0) +
-    (filters.waitingForReply !== null ? 1 : 0);
+    (filters.waitingForReply !== null ? 1 : 0) +
+    (filters.platform ? 1 : 0);
 
   return (
     <aside className="w-96 flex-shrink-0 bg-white/50 dark:bg-slate-900/30 backdrop-blur-xl border-r border-slate-200/60 dark:border-white/10 flex flex-col">

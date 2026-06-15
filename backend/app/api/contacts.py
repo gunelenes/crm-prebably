@@ -125,6 +125,7 @@ def search_contacts(
     purchased: Optional[bool] = None,
     purchase_potential: Optional[str] = None,
     waiting_for_reply: Optional[bool] = None,
+    platform: Optional[str] = None,
     sort_by: str = "last_message_at",
     sort_dir: str = "desc",
     limit: int = 50,
@@ -176,6 +177,8 @@ def search_contacts(
         base_query = base_query.filter(Contact.purchased == purchased)
     if purchase_potential:
         base_query = base_query.filter(Contact.purchase_potential == purchase_potential)
+    if platform in ("instagram", "whatsapp"):
+        base_query = base_query.filter(Contact.platform == platform)
 
     if waiting_for_reply is not None:
         # Cevap bekleyen contact'lar:
