@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api";
-import { avatarUrl, formatTime, platformIcon } from "../utils";
+import { avatarUrl, formatTime, platformIcon, platformLabel, groupByPlatform } from "../utils";
 import Spinner from "./Spinner";
 import ReminderModal from "./ReminderModal";
 import StatusModal from "./StatusModal";
@@ -276,25 +276,37 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
           </div>
         )}
 
-        {activeTab === "activity" && (
-          <div className="space-y-3">
-            {activity.length === 0 ? (
-              <div className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm">Henüz aktivite yok</div>
-            ) : activity.map((a) => (
-              <div key={a.id} className="flex gap-3 p-2 rounded-xl hover:bg-white/40 dark:hover:bg-white/5 transition-colors">
-                <div className="text-lg flex-shrink-0">{activityIcon(a.type)}</div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{a.title}</div>
-                  {a.description && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{a.description}</div>}
-                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                    {userLabel(a) && <span className="mr-2">👤 {userLabel(a)}</span>}
-                    {formatTime(a.created_at)}
-                  </div>
+        {activeTab === "activity" && (() => {
+          if (activity.length === 0) {
+            return <div className="text-center text-slate-400 dark:text-slate-500 py-8 text-sm">Henüz aktivite yok</div>;
+          }
+          const { multi, groups } = groupByPlatform(activity);
+          const renderItem = (a) => (
+            <div key={a.id} className="flex gap-3 p-2 rounded-xl hover:bg-white/40 dark:hover:bg-white/5 transition-colors">
+              <div className="text-lg flex-shrink-0">{activityIcon(a.type)}</div>
+              <div className="flex-1">
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{a.title}</div>
+                {a.description && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{a.description}</div>}
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  {userLabel(a) && <span className="mr-2">👤 {userLabel(a)}</span>}
+                  {formatTime(a.created_at)}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          );
+          return multi ? (
+            <div className="space-y-4">
+              {groups.map((g) => (
+                <div key={g.platform} className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 px-2">{platformLabel(g.platform)}</div>
+                  {g.items.map(renderItem)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">{activity.map(renderItem)}</div>
+          );
+        })()}
 
         {activeTab === "reminders" && (
           <div className="space-y-3">

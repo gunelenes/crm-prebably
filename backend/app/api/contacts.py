@@ -708,10 +708,13 @@ def unlink_contact(contact_id: int, current_user: User = Depends(get_current_use
 
 @router.get("/contacts/{contact_id}/activity")
 def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    group = _group_ids(db, contact_id)
+    # Aktivite her iki kanaldan çekilir ama kanala göre etiketlenir (arayüz bölümler).
+    plat_map = {cid: p for cid, p in db.query(Contact.id, Contact.platform).filter(Contact.id.in_(group)).all()}
     logs = (db.query(ActivityLog)
             .options(joinedload(ActivityLog.created_by),
                      joinedload(ActivityLog.advisor_user))
-            .filter(ActivityLog.contact_id.in_(_group_ids(db, contact_id)))  # birleşik: grup
+            .filter(ActivityLog.contact_id.in_(group))
             .order_by(ActivityLog.created_at.desc())
             .all())
     return [{
@@ -719,6 +722,7 @@ def get_activity(contact_id: int, _: User = Depends(get_current_user), db: Sessi
         "type": l.type,
         "title": l.title,
         "description": l.description,
+        "platform": plat_map.get(l.contact_id),
         "advisor_user": serialize_user(l.advisor_user),
         "created_at": iso_utc(l.created_at),
         "created_by": serialize_user(l.created_by),

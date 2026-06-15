@@ -4,6 +4,27 @@ export const avatarUrl = (name) =>
 export const platformIcon = (p) =>
   p === "instagram" ? "📸" : p === "whatsapp" ? "💬" : "💌";
 
+export const platformLabel = (p) =>
+  p === "instagram" ? "📸 Instagram" : p === "whatsapp" ? "💬 WhatsApp" : (p || "Diğer");
+
+// Aktivite/öğe listesini kanala (platform) göre gruplar. 2+ kanal varsa bölümlenir.
+// Döner: { multi: bool, groups: [{platform, items}] } — tek kanalsa tek grup.
+export const groupByPlatform = (items) => {
+  const order = ["instagram", "whatsapp"];
+  const present = [...new Set(items.map((i) => i.platform || "").filter(Boolean))];
+  const platforms = [
+    ...order.filter((p) => present.includes(p)),
+    ...present.filter((p) => !order.includes(p)),
+  ];
+  if (platforms.length <= 1) {
+    return { multi: false, groups: [{ platform: platforms[0] || null, items }] };
+  }
+  return {
+    multi: true,
+    groups: platforms.map((p) => ({ platform: p, items: items.filter((i) => i.platform === p) })),
+  };
+};
+
 export const formatTime = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
