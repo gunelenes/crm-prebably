@@ -2,6 +2,7 @@ import { useState } from "react";
 import api from "../api";
 import Spinner from "./Spinner";
 import UserSelect from "./UserSelect";
+import { useAuth } from "../AuthContext";
 
 const inputCls =
   "w-full rounded-xl px-4 py-2 text-sm transition-all " +
@@ -12,9 +13,11 @@ const inputCls =
   "text-slate-800 dark:text-slate-100";
 
 export default function StatusModal({ contact, statuses, onClose, onSave }) {
+  const { user } = useAuth();
   const [selectedStatus, setSelectedStatus] = useState(contact?.status_id || "");
   const [note, setNote] = useState("");
-  const [advisorUserId, setAdvisorUserId] = useState(null);
+  // Varsayılan: o anki kullanıcı (boş bırakılırsa backend yine hesabınızı atar)
+  const [advisorUserId, setAdvisorUserId] = useState(user?.id ?? null);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -53,7 +56,7 @@ export default function StatusModal({ contact, statuses, onClose, onSave }) {
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Açıklama..." rows={2}
           className={`${inputCls} resize-none mb-3`} />
         <div className="mb-5">
-          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman seç (boş bırakılırsa hesabınız)" />
+          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman (varsayılan: siz)" />
         </div>
         <div className="flex gap-2">
           <button onClick={save} disabled={saving}

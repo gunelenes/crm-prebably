@@ -24,14 +24,16 @@ function Pill({ active, onClick, children }) {
   );
 }
 
+const TZ = "Europe/Istanbul";
+
 const formatHHMM = (iso) => {
   if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("tr-TR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 };
 
 const formatDay = (iso) => {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString("tr-TR", { timeZone: TZ, day: "2-digit", month: "long", year: "numeric" });
 };
 
 export default function RemindersPage() {
@@ -73,9 +75,11 @@ export default function RemindersPage() {
     load();
   };
 
-  // Tarihe göre grupla
+  // Tarihe göre grupla (İstanbul gününe göre — tarayıcı saatinden bağımsız)
   const groups = items.reduce((acc, r) => {
-    const day = new Date(r.remind_at).toDateString();
+    const day = new Intl.DateTimeFormat("en-CA", {
+      timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date(r.remind_at));
     if (!acc[day]) acc[day] = [];
     acc[day].push(r);
     return acc;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../../api";
 import Spinner from "../../components/Spinner";
 import ContactSearchInput from "./ContactSearchInput";
+import { todayISO } from "../advertising/format";
 
 const inputCls =
   "w-full rounded-xl px-3 py-2 text-sm transition-all " +
@@ -10,8 +11,6 @@ const inputCls =
   "focus:bg-white dark:focus:bg-slate-800 " +
   "focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 " +
   "text-slate-800 dark:text-slate-100";
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const ALLOWED_MIMES = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -65,7 +64,8 @@ export default function PaymentFormModal({
       const fd = new FormData();
       fd.append("type", type);
       fd.append("amount", String(amount));
-      fd.append("paid_at", new Date(paidAt).toISOString());
+      // paidAt = "YYYY-MM-DD" (İstanbul günü) → o günün İstanbul başlangıcının UTC karşılığı
+      fd.append("paid_at", new Date(paidAt + "T00:00:00+03:00").toISOString());
       if (type === "income" && contact?.id) fd.append("contact_id", String(contact.id));
       if (bankAccountId) fd.append("bank_account_id", String(bankAccountId));
       if (description) fd.append("description", description);

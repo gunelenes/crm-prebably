@@ -8,7 +8,8 @@ from app.models import Contact, ActivityLog, Reminder, Status, Conversation, Mes
 from app.auth import get_current_user
 from app.queries import waiting_conversations_q
 from app.utils import iso_utc, serialize_user, serialize_status
-from datetime import datetime
+from app import tz
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -361,10 +362,8 @@ def search_reminders(
     elif status == "done":
         q = q.filter(Reminder.is_done == True)
 
-    now = datetime.utcnow()
-    tr_now = now + timedelta(hours=3)
-    tr_today_start = tr_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start_utc = tr_today_start - timedelta(hours=3)
+    now = tz.now_utc()
+    today_start_utc = tz.tr_today_start_utc()   # İstanbul gününün UTC başlangıcı
     today_end_utc = today_start_utc + timedelta(days=1)
 
     if scope == "today":
@@ -405,11 +404,8 @@ def search_reminders(
 
 @router.get("/reminders/today")
 def get_today_reminders(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Bugüne (TR saatine göre) ait tüm hatırlatmalar — tamamlanmış olsun olmasın, saat sırasına göre."""
-    from datetime import timedelta
-    tr_now = datetime.utcnow() + timedelta(hours=3)
-    tr_today_start = tr_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start_utc = tr_today_start - timedelta(hours=3)
+    """Bugüne (İstanbul saatine göre) ait tüm hatırlatmalar — tamamlanmış olsun olmasın, saat sırasına göre."""
+    today_start_utc = tz.tr_today_start_utc()   # İstanbul gününün UTC başlangıcı
     today_end_utc = today_start_utc + timedelta(days=1)
 
     reminders = (db.query(Reminder)
@@ -491,7 +487,7 @@ def update_reminder(contact_id: int, reminder_id: int, body: dict = Body(...), _
         reminder.description = body["description"]
     if "remind_at" in body and body["remind_at"]:
         try:
-            reminder.remind_at = datetime.fromisoformat(body["remind_at"])
+            reminder.remind_at = tz.parse_iso_to_utc(body["remind_at"])  # İstanbul/UTC ISO → naive UTC
         except Exception:
             return {"error": "Geçersiz tarih"}
     if "advisor_user_id" in body:
@@ -752,7 +748,7 @@ def create_reminder(contact_id: int, body: dict = Body(...), current_user: User 
     contact_id = _canonical_id(db, contact_id)  # birleşik profil: kanoniğe bağla
     advisor_user_id = body.get("advisor_user_id") or current_user.id
     try:
-        remind_at = datetime.fromisoformat(body.get("remind_at") or "")
+        remind_at = tz.parse_iso_to_utc(body.get("remind_at"))  # İstanbul/UTC ISO → naive UTC
     except (ValueError, TypeError):
         return {"error": "Geçersiz veya eksik hatırlatma tarihi"}
     reminder = Reminder(

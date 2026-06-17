@@ -12,32 +12,17 @@ from app.models import (
 )
 from app.queries import waiting_conversations_q
 from app.utils import iso_utc, serialize_user
+from app import tz
 
 router = APIRouter()
 
-# İstanbul UTC+3 (DST yok). "Bugün" yerel saatte 00:00 → UTC 03:00.
-TR_OFFSET_HOURS = 3
+# Saat dilimi mantığı app/tz.py'de merkezîleştirildi (İstanbul, sabit UTC+3).
+TR_OFFSET_HOURS = 3  # zaman serisi gün-sınırı hesabında kullanılıyor
 MAX_TIMESERIES_DAYS = 366  # zaman serisi aralık üst sınırı
 
-
-def _tr_day(dt: datetime) -> date:
-    """Naive UTC datetime'i Türkiye yerel gününe çevirir."""
-    return (dt + timedelta(hours=TR_OFFSET_HOURS)).date()
-
-
-def _today_start_utc() -> datetime:
-    # Şu anki UTC tarihinden TR saat dilimine göre günün başlangıcı
-    now_utc = datetime.utcnow()
-    tr_now = now_utc + timedelta(hours=TR_OFFSET_HOURS)
-    tr_today_start = tr_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return tr_today_start - timedelta(hours=TR_OFFSET_HOURS)
-
-
-def _month_start_utc() -> datetime:
-    now_utc = datetime.utcnow()
-    tr_now = now_utc + timedelta(hours=TR_OFFSET_HOURS)
-    tr_month_start = tr_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return tr_month_start - timedelta(hours=TR_OFFSET_HOURS)
+_tr_day = tz.tr_day              # naive UTC → İstanbul günü
+_today_start_utc = tz.tr_today_start_utc
+_month_start_utc = tz.tr_month_start_utc
 
 
 @router.get("/dashboard/summary")

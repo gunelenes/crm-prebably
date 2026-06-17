@@ -5,7 +5,7 @@ import { formatTime } from "../utils";
 
 const formatHHMM = (iso) => {
   if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
 };
 
 export default function RemindersBell({ expanded = true }) {

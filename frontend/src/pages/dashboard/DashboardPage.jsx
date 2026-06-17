@@ -7,7 +7,7 @@ import DashboardStatusChart from "./DashboardStatusChart";
 import DashboardActivityFeed from "./DashboardActivityFeed";
 
 const todayLabel = () =>
-  new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  new Date().toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
 export default function DashboardPage() {
   const { user } = useAuth();

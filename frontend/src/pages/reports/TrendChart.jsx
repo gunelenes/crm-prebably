@@ -34,10 +34,10 @@ export default function TrendChart({ data = [], series = [], formatValue = (v) =
 
   // x ekseni etiketleri (~6 adet)
   const labelStep = Math.max(1, Math.ceil(n / 6));
-  const fmtDate = (iso) => {
-    const d = new Date(iso + "T00:00:00");
-    return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
-  };
+  const fmtDate = (iso) =>
+    new Date(iso + "T12:00:00+03:00").toLocaleDateString("tr-TR", {
+      timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit",
+    });
 
   const onMove = (e) => {
     const rect = svgRef.current.getBoundingClientRect();
@@ -97,7 +97,7 @@ export default function TrendChart({ data = [], series = [], formatValue = (v) =
         <div className="absolute -top-1 pointer-events-none rounded-xl bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200/70 dark:border-white/10 shadow-lg px-3 py-2 text-xs"
           style={{ left: `${(x(hover) / W) * 100}%`, transform: `translateX(${hover > n / 2 ? "-110%" : "10%"})` }}>
           <div className="font-semibold text-slate-700 dark:text-slate-200 mb-1">
-            {new Date(data[hover].date + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })}
+            {new Date(data[hover].date + "T12:00:00+03:00").toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "long", year: "numeric" })}
           </div>
           {series.map((s) => (
             <div key={s.key} className="flex items-center justify-between gap-3">

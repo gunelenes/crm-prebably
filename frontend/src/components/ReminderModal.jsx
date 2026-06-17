@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../api";
 import Spinner from "./Spinner";
 import UserSelect from "./UserSelect";
+import { useAuth } from "../AuthContext";
 
 const inputCls =
   "w-full rounded-xl px-4 py-2 text-sm transition-all " +
@@ -11,12 +12,17 @@ const inputCls =
   "focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 " +
   "text-slate-800 dark:text-slate-100";
 
+const TZ = "Europe/Istanbul";
+
+// UTC ISO → datetime-local için İstanbul duvar-saati "YYYY-MM-DDTHH:mm" (tarayıcı-bağımsız).
 const toDatetimeLocal = (iso) => {
   if (!iso) return "";
-  const d = new Date(iso);
-  // datetime-local input bekler: YYYY-MM-DDTHH:mm (yerel saat)
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(iso));
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 };
 
 export default function ReminderModal({ contactId, editingReminder = null, onClose, onSave }) {
@@ -25,8 +31,12 @@ export default function ReminderModal({ contactId, editingReminder = null, onClo
 
   const [title, setTitle] = useState(editingReminder?.title || "");
   const [description, setDescription] = useState(editingReminder?.description || "");
+  const { user } = useAuth();
   const [remindAt, setRemindAt] = useState(toDatetimeLocal(editingReminder?.remind_at));
-  const [advisorUserId, setAdvisorUserId] = useState(editingReminder?.advisor_user?.id || null);
+  // Yeni kayıtta varsayılan danışman = o anki kullanıcı; düzenlemede mevcut danışman korunur.
+  const [advisorUserId, setAdvisorUserId] = useState(
+    editingReminder ? (editingReminder.advisor_user?.id || null) : (user?.id ?? null)
+  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -35,15 +45,21 @@ export default function ReminderModal({ contactId, editingReminder = null, onClo
       setDescription(editingReminder.description || "");
       setRemindAt(toDatetimeLocal(editingReminder.remind_at));
       setAdvisorUserId(editingReminder.advisor_user?.id || null);
+    } else {
+      // Yeni kayıt: kullanıcı geç yüklenirse boş alanı o anki kullanıcıyla doldur
+      setAdvisorUserId((prev) => prev ?? (user?.id ?? null));
     }
-  }, [editingReminder?.id]);
+  }, [editingReminder?.id, user?.id]);
 
   const save = async () => {
     if (!title.trim() || !remindAt || !targetContactId) return;
     setSaving(true);
     try {
       const body = {
-        title, description, remind_at: remindAt, advisor_user_id: advisorUserId,
+        title, description,
+        // datetime-local değeri İstanbul duvar-saati kabul edilir → UTC ISO'ya çevrilir
+        remind_at: new Date(remindAt + ":00+03:00").toISOString(),
+        advisor_user_id: advisorUserId,
       };
       if (isEdit) {
         await api.put(`/contacts/${targetContactId}/reminders/${editingReminder.id}`, body);
@@ -68,7 +84,7 @@ export default function ReminderModal({ contactId, editingReminder = null, onClo
         <input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)}
           className={`${inputCls} mb-3`} />
         <div className="mb-5">
-          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman seç (boş bırakılırsa hesabınız)" />
+          <UserSelect value={advisorUserId} onChange={setAdvisorUserId} placeholder="Danışman (varsayılan: siz)" />
         </div>
         <div className="flex gap-2">
           <button onClick={save} disabled={!title.trim() || !remindAt || saving}

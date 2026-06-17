@@ -22,6 +22,7 @@ from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyn
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
+from app.tz import today_tr
 
 # Otomatik senkronizasyon: en az bu aralıkta bir başarılı senkron yeter
 AUTO_SYNC_INTERVAL_HOURS = 12
@@ -486,7 +487,7 @@ def auto_sync_tick():
                       or (now - st.token_checked_at) >= timedelta(hours=TOKEN_CHECK_INTERVAL_HOURS))
         result = None
         if due:
-            to_d = date.today()
+            to_d = today_tr()  # İstanbul günü (sunucu-yerel değil)
             from_d = to_d - timedelta(days=AUTO_SYNC_DAYS)
             result = run_ad_sync(db, client, token, version, from_d, to_d)
         tok = _check_token(client, token, version) if (need_token or due) else None
@@ -513,7 +514,7 @@ def sync_ads(
                 "error": "META_ACCESS_TOKEN tanımlı değil. Reklam senkronizasyonu için "
                          "Meta erişim anahtarı (.env) gerekli."}
     version = config.META_GRAPH_VERSION
-    to_d = _parse_date(to) or date.today()
+    to_d = _parse_date(to) or today_tr()  # İstanbul günü (sunucu-yerel değil)
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     client = request.app.state.sync_http
     result = run_ad_sync(db, client, token, version, from_d, to_d)
@@ -770,7 +771,7 @@ def analytics_summary(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    to_d = _parse_date(to) or date.today()
+    to_d = _parse_date(to) or today_tr()  # İstanbul günü (sunucu-yerel değil)
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     # Sadece Parametreler'de tanımlı hesaplar (yetim/otomatik-keşfedilmiş satırlar gizlenir)
     base_filters = [AdSpend.date >= from_d, AdSpend.date <= to_d,

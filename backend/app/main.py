@@ -66,6 +66,29 @@ async def lifespan(app: FastAPI):
                 conn.exec_driver_sql(ddl)
     except Exception as e:
         print("Şema migration uyarısı:", e)
+
+    # Tek seferlik veri düzeltmesi: eski hatırlatmalar remind_at'i İstanbul duvar-saati
+    # olarak (naive) saklıyordu; artık UTC saklanıyor. Mevcut satırları bir kez 3 saat geri
+    # alıp UTC'ye hizala. 'app_meta' işaretçisiyle tekrar çalışması engellenir (idempotent).
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "CREATE TABLE IF NOT EXISTS app_meta (key VARCHAR(80) PRIMARY KEY, value TEXT)"
+            )
+            done = conn.exec_driver_sql(
+                "SELECT 1 FROM app_meta WHERE key = 'reminder_tz_utc_fix'"
+            ).first()
+            if not done:
+                conn.exec_driver_sql(
+                    "UPDATE reminders SET remind_at = remind_at - INTERVAL '3 hours' "
+                    "WHERE remind_at IS NOT NULL"
+                )
+                conn.exec_driver_sql(
+                    "INSERT INTO app_meta (key, value) VALUES ('reminder_tz_utc_fix', 'done')"
+                )
+                print("remind_at tek seferlik UTC düzeltmesi uygulandı.")
+    except Exception as e:
+        print("remind_at tz migration uyarısı:", e)
     http_client = httpx.AsyncClient(timeout=30.0)
     sync_http_client = httpx.Client(timeout=60.0)
     app.state.http = http_client

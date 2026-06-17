@@ -23,10 +23,16 @@ export const CHANNEL_META = {
   other: { label: "Diğer", icon: "🔗", gradient: "bg-gradient-to-br from-slate-500 to-slate-700", shadow: "shadow-slate-500/30" },
 };
 
-export const todayISO = () => new Date().toISOString().slice(0, 10);
+// İstanbul gününe göre "YYYY-MM-DD" (tarayıcı saat diliminden bağımsız; gece geç saatte gün kaymaz).
+const istanbulISO = (d) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+
+export const todayISO = () => istanbulISO(new Date());
 
 export const daysAgoISO = (n) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return istanbulISO(d);
 };

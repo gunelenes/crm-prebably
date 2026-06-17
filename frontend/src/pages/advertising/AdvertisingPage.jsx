@@ -136,7 +136,7 @@ export default function AdvertisingPage() {
         {/* Son senkronizasyon bilgisi */}
         {status?.last_run_at && (
           <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">
-            🔄 Son senkron: {new Date(status.last_run_at).toLocaleString("tr-TR")}
+            🔄 Son senkron: {new Date(status.last_run_at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}
             {status.last_status ? ` · ${status.last_status === "ok" ? "başarılı" : "hata"}` : ""}
             {status.token_days_left != null && status.token_valid !== false ? ` · token ~${status.token_days_left} gün geçerli` : ""}
             {" · otomatik senkron açık"}

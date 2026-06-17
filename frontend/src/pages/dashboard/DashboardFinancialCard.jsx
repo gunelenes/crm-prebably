@@ -4,7 +4,7 @@ const fmt = (n) =>
   new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(n || 0);
 
 const monthLabel = () =>
-  new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  new Date().toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", month: "long", year: "numeric" });
 
 function Card({ icon, label, value, gradient, shadow }) {
   return (

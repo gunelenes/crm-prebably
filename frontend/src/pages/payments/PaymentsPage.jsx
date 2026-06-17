@@ -34,8 +34,9 @@ export default function PaymentsPage() {
     const p = { limit: PAGE_SIZE, offset: off, sort_by: "paid_at", sort_dir: "desc" };
     if (f.type) p.type = f.type;
     if (f.bankAccountId) p.bank_account_id = f.bankAccountId;
-    if (f.dateFrom) p.date_from = new Date(f.dateFrom).toISOString();
-    if (f.dateTo) p.date_to = new Date(f.dateTo + "T23:59:59").toISOString();
+    // Tarih filtreleri İstanbul gün sınırı olarak yorumlanır (tarayıcı saatinden bağımsız)
+    if (f.dateFrom) p.date_from = new Date(f.dateFrom + "T00:00:00+03:00").toISOString();
+    if (f.dateTo) p.date_to = new Date(f.dateTo + "T23:59:59+03:00").toISOString();
     if (f.q) p.q = f.q;
     return p;
   }, []);

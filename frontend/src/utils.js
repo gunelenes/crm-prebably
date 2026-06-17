@@ -25,6 +25,15 @@ export const groupByPlatform = (items) => {
   };
 };
 
+// Tüm zaman gösterimleri İstanbul'a sabitlenir (tarayıcı/sunucu konumundan bağımsız).
+export const TZ = "Europe/Istanbul";
+
+// Bir Date'i İstanbul gününe göre "YYYY-MM-DD" biçimine çevirir (gün karşılaştırması için).
+const istanbulYMD = (date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+
 export const formatTime = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -32,9 +41,12 @@ export const formatTime = (dateStr) => {
   const diff = Math.floor((now - date) / 60000);
   if (diff < 1) return "Az önce";
   if (diff < 60) return `${diff} dk önce`;
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart - 86400000);
-  if (date >= todayStart) return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  if (date >= yesterdayStart) return `Dün ${date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`;
-  return date.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateYMD = istanbulYMD(date);
+  const todayYMD = istanbulYMD(now);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const opts = { timeZone: TZ, hour: "2-digit", minute: "2-digit" };
+  if (dateYMD === todayYMD) return date.toLocaleTimeString("tr-TR", opts);
+  if (dateYMD === istanbulYMD(yesterday)) return `Dün ${date.toLocaleTimeString("tr-TR", opts)}`;
+  return date.toLocaleDateString("tr-TR", { timeZone: TZ, day: "2-digit", month: "2-digit", year: "numeric" });
 };
