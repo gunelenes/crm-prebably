@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, User
+from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, Conversation, User
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
@@ -938,4 +938,68 @@ def analytics_summary(
         "by_channel": by_channel,
         "by_account": by_account,
         "by_campaign": by_campaign,
+    }
+
+
+@router.get("/analytics/accuracy")
+def analytics_accuracy(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Doğruluk kontrolü: Meta'nın bildirdiği GERÇEK mesaj konuşmalarını
+    (result_type == 'messaging_conversation_started') CRM'de gerçekten açılan
+    konuşmalarla (Conversation tablosu, platform + created_at) karşılaştırır.
+
+    Hesap filtresinden bağımsızdır: CRM konuşmaları reklam hesabına bağlı değildir,
+    bu yüzden yalnızca tarih aralığı dikkate alınır. CRM organik konuşmaları da
+    içerdiği için normalde CRM >= Meta beklenir; Meta > CRM ise webhook kaybı işareti."""
+    to_d = _parse_date(to) or date.today()
+    from_d = _parse_date(from_) or (to_d - timedelta(days=30))
+    from_dt = datetime.combine(from_d, datetime.min.time())
+    to_dt = datetime.combine(to_d, datetime.max.time())
+
+    # --- Meta tarafı: yalnızca gerçek mesaj konuşmaları, kanal bazında ---
+    meta_filters = [
+        AdSpend.date >= from_d, AdSpend.date <= to_d,
+        AdSpend.account_act_id.in_(select(AdAccount.act_id)),
+        AdSpend.result_type == "messaging_conversation_started",
+    ]
+    meta_rows = dict(
+        db.query(AdSpend.channel, func.coalesce(func.sum(AdSpend.results), 0))
+        .filter(*meta_filters).group_by(AdSpend.channel).all()
+    )
+    meta_ig = int(meta_rows.get("instagram", 0) or 0)
+    meta_wa = int(meta_rows.get("whatsapp", 0) or 0)
+    meta_karma = int(meta_rows.get("karma", 0) or 0)
+    meta_other = sum(int(v or 0) for k, v in meta_rows.items()
+                     if k not in ("instagram", "whatsapp", "karma"))
+    meta_total = meta_ig + meta_wa + meta_karma + meta_other
+
+    # --- CRM tarafı: gerçekten açılan konuşmalar (platform bazında) ---
+    def crm_count(platform: str) -> int:
+        return int(db.query(func.count(Conversation.id)).filter(
+            Conversation.platform == platform,
+            Conversation.created_at >= from_dt,
+            Conversation.created_at <= to_dt,
+        ).scalar() or 0)
+
+    crm_ig = crm_count("instagram")
+    crm_wa = crm_count("whatsapp")
+    crm_total = crm_ig + crm_wa
+
+    return {
+        "range": {"from": from_d.isoformat(), "to": to_d.isoformat()},
+        "rows": [
+            {"channel": "instagram", "label": "Instagram",
+             "meta": meta_ig, "crm": crm_ig, "diff": crm_ig - meta_ig},
+            {"channel": "whatsapp", "label": "WhatsApp",
+             "meta": meta_wa, "crm": crm_wa, "diff": crm_wa - meta_wa},
+            {"channel": "karma", "label": "Karma (IG/WA)",
+             "meta": meta_karma, "crm": None, "diff": None,
+             "note": "Meta bu reklamları IG/WA arasında ayıramadığı için CRM ile "
+                     "eşleştirilemiyor; sayı toplama dahildir."},
+        ],
+        "total": {"meta": meta_total, "crm": crm_total, "diff": crm_total - meta_total},
     }

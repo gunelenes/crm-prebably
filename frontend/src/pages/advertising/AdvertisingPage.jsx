@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../api";
 import AdsKpiCards from "./AdsKpiCards";
+import AdsAccuracyPanel from "./AdsAccuracyPanel";
 import AdsChannelCards from "./AdsChannelCards";
 import AdAccountCards from "./AdAccountCards";
 import AdsCampaignTable from "./AdsCampaignTable";
@@ -11,6 +12,7 @@ export default function AdvertisingPage() {
   const [from, setFrom] = useState(daysAgoISO(30));
   const [to, setTo] = useState(todayISO());
   const [summary, setSummary] = useState(null);
+  const [accuracy, setAccuracy] = useState(null);
   const [spendRows, setSpendRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -36,12 +38,14 @@ export default function AdvertisingPage() {
       const spendParams = { date_from: from, date_to: to, limit: 200 };
       if (account) { sumParams.account = account; spendParams.account = account; }
       if (campaign) { sumParams.campaign = campaign; spendParams.campaign = campaign; }
-      const [s, sp] = await Promise.all([
+      const [s, sp, acc] = await Promise.all([
         api.get("/analytics/summary", { params: sumParams }),
         api.get("/ad-spend", { params: spendParams }),
+        api.get("/analytics/accuracy", { params: { from, to } }),
       ]);
       setSummary(s.data);
       setSpendRows(sp.data.items || []);
+      setAccuracy(acc.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -179,6 +183,7 @@ export default function AdvertisingPage() {
         </div>
 
         <AdsKpiCards overall={summary?.overall} />
+        <AdsAccuracyPanel accuracy={accuracy} loading={loading} />
         <AdsChannelCards byChannel={summary?.by_channel} />
         <AdAccountCards byAccount={summary?.by_account} />
 
