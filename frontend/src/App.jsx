@@ -13,6 +13,7 @@ const AdvertisingPage = lazy(() => import("./pages/advertising/AdvertisingPage")
 const ReportsPage = lazy(() => import("./pages/reports/ReportsPage"));
 const RemindersPage = lazy(() => import("./pages/RemindersPage"));
 const QuickRepliesPage = lazy(() => import("./pages/QuickRepliesPage"));
+const IssuesPage = lazy(() => import("./pages/issues/IssuesPage"));
 const ParametersPage = lazy(() => import("./pages/parameters/ParametersPage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
 
@@ -36,6 +37,7 @@ export default function App() {
           <ProtectedRoute adminOnly><ReportsPage /></ProtectedRoute>
         } />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
+        <Route path="hatalar" element={<IssuesPage />} />
         <Route path="parametreler" element={<ParametersPage />} />
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
         <Route path="kullanicilar" element={

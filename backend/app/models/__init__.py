@@ -262,6 +262,45 @@ class Registration(Base):
     matched_contact     = relationship("Contact", foreign_keys=[matched_contact_id])
 
 
+class BugReport(Base):
+    """Geliştirme/test sırasında bulunan hata veya yapılacak iş kaydı.
+
+    Test edenler hataları tek yerde toplar; 'açık' → 'çözüldü' olarak işaretlenir.
+    Birden fazla ekran görüntüsü BugAttachment ile ilişkilendirilir.
+    Yeni tablo olduğu için create_all otomatik oluşturur (manuel SQL gerekmez)."""
+    __tablename__ = "bug_reports"
+    id                  = Column(Integer, primary_key=True, index=True)
+    title               = Column(String(200), nullable=False)
+    description         = Column(Text, nullable=True)
+    status              = Column(String(20), default="acik", index=True)   # acik | cozuldu
+    priority            = Column(String(20), default="orta")               # dusuk | orta | yuksek
+    page                = Column(String(120), nullable=True)               # hatanın görüldüğü sayfa/bölüm
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    updated_at          = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    resolved_at         = Column(DateTime, nullable=True)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    resolved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+    resolved_by         = relationship("User", foreign_keys=[resolved_by_user_id])
+    attachments         = relationship(
+        "BugAttachment", back_populates="bug",
+        cascade="all, delete-orphan", order_by="BugAttachment.id",
+    )
+
+
+class BugAttachment(Base):
+    """Bir hata kaydına bağlı ekran görüntüsü (görsel DB'de LargeBinary olarak tutulur)."""
+    __tablename__ = "bug_attachments"
+    id          = Column(Integer, primary_key=True, index=True)
+    bug_id      = Column(Integer, ForeignKey("bug_reports.id"), nullable=False, index=True)
+    image_data  = Column(LargeBinary, nullable=False)
+    mime        = Column(String(100), nullable=True)
+    filename    = Column(String(255), nullable=True)
+    size        = Column(Integer, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    bug         = relationship("BugReport", back_populates="attachments")
+
+
 class ContactLink(Base):
     """İki Contact kaydını 'aynı kişi' olarak eşler (ör. bir IG + bir WhatsApp).
 
