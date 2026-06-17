@@ -53,7 +53,7 @@ async def _send_text(request, platform, recipient_id, text):
     return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
 
 @router.get("/conversations")
-def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, q: Optional[str] = None, platform: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optional[bool] = None, status_id: Optional[int] = None, q: Optional[str] = None, platform: Optional[str] = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Tüm konuşmaları contact ve status ile birlikte tek sorguda çek
     base_query = db.query(Conversation).options(
         joinedload(Conversation.contact).joinedload(Contact.status)
@@ -62,6 +62,10 @@ def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optio
     # Kanal (platform) filtresi: instagram | whatsapp
     if platform in ("instagram", "whatsapp"):
         base_query = base_query.filter(Conversation.platform == platform)
+
+    # Statü filtresi (server-side) — .has() ile korelasyonlu EXISTS (çift join'i önler)
+    if status_id is not None:
+        base_query = base_query.filter(Conversation.contact.has(Contact.status_id == status_id))
 
     # Arama: kişi adı / ad-soyad / telefon / e-posta
     if q:
@@ -136,6 +140,43 @@ def get_conversations(limit: int = 50, offset: int = 0, waiting_for_reply: Optio
         })
 
     return result
+
+
+@router.get("/conversations/counts")
+def get_conversation_counts(
+    q: Optional[str] = None,
+    platform: Optional[str] = None,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Sayfalamadan BAĞIMSIZ doğru toplamlar: tüm konuşmalar, cevap bekleyen ve
+    statü bazında kişi sayısı. platform/arama filtreleri uygulanır; statü ve
+    'cevap bekliyor' kırılım boyutu olduğu için bunlar uygulanmaz."""
+    base = db.query(Conversation)
+    if platform in ("instagram", "whatsapp"):
+        base = base.filter(Conversation.platform == platform)
+    if q:
+        like = f"%{q.strip()}%"
+        base = base.filter(Conversation.contact.has(or_(
+            Contact.name.ilike(like),
+            Contact.full_name.ilike(like),
+            Contact.phone.ilike(like),
+            Contact.email.ilike(like),
+        )))
+
+    total = base.with_entities(func.count(Conversation.id)).scalar() or 0
+
+    waiting_ids = waiting_conversations_q(db).with_entities(Conversation.id).distinct()
+    waiting = (base.filter(Conversation.id.in_(waiting_ids))
+               .with_entities(func.count(Conversation.id)).scalar()) or 0
+
+    status_rows = (base.join(Contact, Conversation.contact_id == Contact.id)
+                   .with_entities(Contact.status_id, func.count(Conversation.id))
+                   .group_by(Contact.status_id).all())
+    by_status = {str(sid): int(cnt) for sid, cnt in status_rows if sid is not None}
+
+    return {"total": int(total), "waiting": int(waiting), "by_status": by_status}
+
 
 @router.post("/conversations/{conversation_id}/dismiss-reply")
 def dismiss_reply(conversation_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):

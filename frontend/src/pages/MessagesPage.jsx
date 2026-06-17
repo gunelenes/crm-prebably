@@ -12,6 +12,8 @@ const mediaUrl = (id) => `${API}/messages/${id}/media?token=${localStorage.getIt
 export default function MessagesPage() {
   const location = useLocation();
   const [conversations, setConversations] = useState([]);
+  // Sayfalamadan bağımsız doğru toplamlar (backend /conversations/counts)
+  const [counts, setCounts] = useState({ total: 0, waiting: 0, by_status: {} });
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [replyText, setReplyText] = useState("");
@@ -39,12 +41,14 @@ export default function MessagesPage() {
   const waitingFilterRef = useRef(false);
   const searchRef = useRef("");
   const platformFilterRef = useRef(null);
+  const activeFilterRef = useRef(null);
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => { convLimitRef.current = convLimit; }, [convLimit]);
   useEffect(() => { waitingFilterRef.current = waitingFilter; }, [waitingFilter]);
   useEffect(() => { searchRef.current = search; }, [search]);
   useEffect(() => { platformFilterRef.current = platformFilter; }, [platformFilter]);
+  useEffect(() => { activeFilterRef.current = activeFilter; }, [activeFilter]);
 
   const fetchConversations = () => {
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
@@ -52,19 +56,30 @@ export default function MessagesPage() {
       try {
         const params = { limit: convLimitRef.current };
         if (waitingFilterRef.current) params.waiting_for_reply = true;
+        if (activeFilterRef.current) params.status_id = activeFilterRef.current;
         if (searchRef.current.trim()) params.q = searchRef.current.trim();
         if (platformFilterRef.current) params.platform = platformFilterRef.current;
-        const res = await api.get("/conversations", { params });
-        setConversations(res.data);
+        // Sayımlar sayfalamadan/aktif filtreden bağımsız → yalnızca platform + arama
+        const countParams = {};
+        if (searchRef.current.trim()) countParams.q = searchRef.current.trim();
+        if (platformFilterRef.current) countParams.platform = platformFilterRef.current;
+        const [listRes, countRes] = await Promise.all([
+          api.get("/conversations", { params }),
+          api.get("/conversations/counts", { params: countParams }),
+        ]);
+        setConversations(listRes.data);
+        setCounts(countRes.data);
       } catch (err) { console.error(err); }
       finally { setInitialLoad(false); }
     }, 500);
   };
 
   const dismissReply = async (convId) => {
+    const wasWaiting = conversations.find((c) => c.id === convId)?.waiting_for_reply;
     setConversations((prev) => prev.map((c) =>
       c.id === convId ? { ...c, waiting_for_reply: false } : c
     ));
+    if (wasWaiting) setCounts((c) => ({ ...c, waiting: Math.max(0, (c.waiting || 0) - 1) }));
     try {
       await api.post(`/conversations/${convId}/dismiss-reply`);
     } catch (err) {
@@ -118,11 +133,11 @@ export default function MessagesPage() {
     return () => { clearInterval(interval); clearInterval(reminderInterval); };
   }, []);
 
-  // Sayfa boyutu, "cevap bekliyor" filtresi veya arama değişince yeniden çek.
+  // Sayfa boyutu, filtreler (cevap bekliyor / statü / kanal) veya arama değişince yeniden çek.
   useEffect(() => {
     fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convLimit, waitingFilter, search, platformFilter]);
+  }, [convLimit, waitingFilter, activeFilter, search, platformFilter]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -265,14 +280,14 @@ export default function MessagesPage() {
     setActiveReminders((p) => p.filter((x) => x.id !== r.id));
   };
 
-  const statusCounts = statuses.reduce((acc, s) => {
-    acc[s.id] = conversations.filter((c) => c.contact.status_id === s.id).length;
-    return acc;
-  }, {});
-  const filteredConversations = (!waitingFilter && activeFilter)
-    ? conversations.filter((c) => c.contact.status_id === activeFilter)
-    : conversations;
-  const waitingCount = conversations.filter((c) => c.waiting_for_reply).length;
+  // Statü/cevap-bekliyor filtreleri artık server-side; liste doğrudan gösterilir.
+  const filteredConversations = conversations;
+  // Aktif görünümün gerçek toplam sayısı (sayfalamadan bağımsız)
+  const activeCount = waitingFilter
+    ? (counts.waiting || 0)
+    : activeFilter
+      ? (counts.by_status?.[activeFilter] || 0)
+      : (counts.total || 0);
 
   return (
     <div className="flex flex-1 overflow-hidden flex-col">
@@ -296,13 +311,13 @@ export default function MessagesPage() {
           className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${(!activeFilter && !waitingFilter)
             ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30"
             : "bg-white/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 border border-slate-200/60 dark:border-white/10"}`}>
-          Tümü ({conversations.length})
+          Tümü ({counts.total || 0})
         </button>
         <button onClick={() => { setActiveFilter(null); setWaitingFilter(!waitingFilter); }}
           className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${waitingFilter
             ? "bg-amber-500 text-white shadow-md shadow-amber-500/30"
             : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"}`}>
-          ⏳ Cevap bekliyor ({waitingFilter ? conversations.length : waitingCount})
+          ⏳ Cevap bekliyor ({counts.waiting || 0})
         </button>
         {statuses.filter((s) => s.is_active).map((s) => {
           const isActive = !waitingFilter && activeFilter === s.id;
@@ -314,7 +329,7 @@ export default function MessagesPage() {
                 boxShadow: isActive ? `0 6px 18px ${s.color}50` : undefined,
                 opacity: isActive ? 1 : 0.7,
               }}>
-              {s.name} ({statusCounts[s.id] || 0})
+              {s.name} ({counts.by_status?.[s.id] || 0})
             </button>
           );
         })}
@@ -343,7 +358,7 @@ export default function MessagesPage() {
           <div className="px-4 py-3 border-b border-slate-200/60 dark:border-white/10 flex items-center justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">Konuşmalar</div>
-              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{filteredConversations.length}</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{activeCount}</div>
             </div>
             <button onClick={syncConversations} disabled={syncing}
               title={syncing ? "Instagram'dan yeni mesajlar çekiliyor..." : "Senkronize et"}
