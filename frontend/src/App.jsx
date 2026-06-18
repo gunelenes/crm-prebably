@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
@@ -16,11 +16,30 @@ const QuickRepliesPage = lazy(() => import("./pages/QuickRepliesPage"));
 const IssuesPage = lazy(() => import("./pages/issues/IssuesPage"));
 const ParametersPage = lazy(() => import("./pages/parameters/ParametersPage"));
 const UsersPage = lazy(() => import("./pages/UsersPage"));
+const SeminarFormsPage = lazy(() => import("./pages/seminar-forms/SeminarFormsPage"));
+const FormRegistrationsPage = lazy(() => import("./pages/seminar-forms/FormRegistrationsPage"));
+const PublicFormPage = lazy(() => import("./pages/public/PublicFormPage"));
+
+function PublicFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600">
+      <div className="animate-spin border-4 border-white/70 border-t-transparent rounded-full w-10 h-10" />
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/f/:slug"
+        element={
+          <Suspense fallback={<PublicFallback />}>
+            <PublicFormPage />
+          </Suspense>
+        }
+      />
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
@@ -37,6 +56,8 @@ export default function App() {
           <ProtectedRoute adminOnly><ReportsPage /></ProtectedRoute>
         } />
         <Route path="hazir-mesajlar" element={<QuickRepliesPage />} />
+        <Route path="seminer-formlari" element={<SeminarFormsPage />} />
+        <Route path="seminer-formlari/:id/kayitlar" element={<FormRegistrationsPage />} />
         <Route path="hatalar" element={<IssuesPage />} />
         <Route path="parametreler" element={<ParametersPage />} />
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />

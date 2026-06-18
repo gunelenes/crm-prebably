@@ -1,5 +1,5 @@
 from app.database import Base
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Boolean, ForeignKey, Enum, Numeric, LargeBinary, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Boolean, ForeignKey, Enum, Numeric, LargeBinary, UniqueConstraint, Index, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -260,6 +260,44 @@ class Registration(Base):
     raw                 = Column(Text, nullable=True)                # orijinal CSV satırı (JSON)
     uploaded_at         = Column(DateTime, default=datetime.utcnow)
     matched_contact     = relationship("Contact", foreign_keys=[matched_contact_id])
+
+
+class SeminarForm(Base):
+    """Ücretsiz seminer kayıt formu. Her formun benzersiz slug'ı ile public sayfası vardır.
+
+    Alanlar tamamen dinamiktir: 'fields' JSON dizisi her bir input'un şemasını tutar
+    (key, label, type, required, placeholder, options). Public kayıtlar SeminarRegistration
+    tablosunda 'answers' JSON sözlüğünde saklanır (key → değer eşlemesi)."""
+    __tablename__ = "seminar_forms"
+    id                      = Column(Integer, primary_key=True, index=True)
+    title                   = Column(String(200), nullable=False)
+    slug                    = Column(String(140), unique=True, nullable=False, index=True)
+    description             = Column(Text, nullable=True)
+    fields                  = Column(JSON, nullable=False, default=list)
+    thank_you_message       = Column(Text, nullable=True)
+    thank_you_redirect_url  = Column(String(500), nullable=True)
+    is_active               = Column(Boolean, default=True)
+    created_at              = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by              = relationship("User", foreign_keys=[created_by_user_id])
+    registrations           = relationship(
+        "SeminarRegistration",
+        back_populates="form",
+        cascade="all, delete-orphan",
+    )
+
+
+class SeminarRegistration(Base):
+    """Public seminer formuna gelen tek bir kayıt. 'answers' JSON şeması:
+    { field_key: value, ... }. Telefon alanı için value bir object: {"code": "+90", "number": "..."}."""
+    __tablename__ = "seminar_registrations"
+    id          = Column(Integer, primary_key=True, index=True)
+    form_id     = Column(Integer, ForeignKey("seminar_forms.id"), nullable=False, index=True)
+    answers     = Column(JSON, nullable=False, default=dict)
+    ip_address  = Column(String(64), nullable=True)
+    user_agent  = Column(String(500), nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow, index=True)
+    form        = relationship("SeminarForm", back_populates="registrations")
 
 
 class BugReport(Base):
