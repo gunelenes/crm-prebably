@@ -15,11 +15,16 @@ const COUNTRY_CODES = [
   "+58", "+503", "+504", "+505", "+506", "+507",
 ];
 
-const inputCls =
-  "w-full rounded-xl px-4 py-3 text-base transition-all " +
+// Genişlik dışı ortak stiller. `w-full`'ı ayrı tutuyoruz; aksi halde
+// telefon alanındaki sabit genişlikli (w-28) ülke kodu select'i ile çakışıp
+// onu eziyordu (Tailwind'de aynı özgüllükte son kural kazanır).
+const inputBase =
+  "rounded-xl px-4 py-3 text-base transition-all " +
   "bg-white/80 backdrop-blur border border-slate-200 " +
   "focus:outline-none focus:ring-4 focus:ring-fuchsia-300/40 focus:border-fuchsia-500 " +
   "text-slate-900 placeholder:text-slate-400";
+
+const inputCls = `w-full ${inputBase}`;
 
 export default function PublicFormPage() {
   const { slug } = useParams();
@@ -182,7 +187,7 @@ export default function PublicFormPage() {
             <select
               value={pv.code}
               onChange={(e) => setValue(f.key, { ...pv, code: e.target.value })}
-              className={`${inputCls} w-28`}
+              className={`${inputBase} w-28 shrink-0`}
             >
               {COUNTRY_CODES.map((c) => (
                 <option key={c} value={c}>
@@ -196,7 +201,7 @@ export default function PublicFormPage() {
               value={pv.number}
               onChange={(e) => setValue(f.key, { ...pv, number: e.target.value })}
               placeholder={f.placeholder || "555 123 45 67"}
-              className={`${inputCls} flex-1`}
+              className={`${inputBase} flex-1 min-w-0`}
             />
           </div>
         );

@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import api from "../../api";
 import Spinner from "../../components/Spinner";
 
-const inputCls =
-  "w-full rounded-xl px-4 py-2 text-sm transition-all " +
+// `w-full`'ı ayrı tutuyoruz: aksi halde alan satırındaki sabit genişlikli
+// (w-44) tip seçici select'i ezip tüm satırı bozuyordu.
+const inputBase =
+  "rounded-xl px-4 py-2 text-sm transition-all " +
   "bg-white/60 dark:bg-slate-800/50 backdrop-blur " +
   "border border-slate-200/60 dark:border-white/10 " +
   "focus:bg-white dark:focus:bg-slate-800 " +
   "focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 focus:border-fuchsia-500 " +
   "text-slate-800 dark:text-slate-100";
+
+const inputCls = `w-full ${inputBase}`;
 
 const FIELD_TYPES = [
   { value: "text", label: "Kısa Metin" },
@@ -250,12 +254,12 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
                         value={f.label}
                         onChange={(e) => updateField(idx, { label: e.target.value })}
                         placeholder="Alan etiketi (ör. Mesleğiniz)"
-                        className={`${inputCls} flex-1`}
+                        className={`${inputBase} flex-1 min-w-0`}
                       />
                       <select
                         value={f.type}
                         onChange={(e) => updateField(idx, { type: e.target.value })}
-                        className={`${inputCls} w-44`}
+                        className={`${inputBase} w-44 shrink-0`}
                       >
                         {FIELD_TYPES.map((t) => (
                           <option key={t.value} value={t.value}>
