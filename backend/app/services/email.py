@@ -12,11 +12,46 @@ Stdlib smtplib + email.message kullanılır — yeni bağımlılık yok. Gönder
 
 import re
 import smtplib
+import socket
 import ssl
 from email.message import EmailMessage
 from html import escape as _html_escape
 
 _VAR_RE = re.compile(r"\{([a-z0-9_]+)\}")
+
+
+def _connect_ipv4(host: str, port: int, timeout: int) -> socket.socket:
+    """IPv4 (AF_INET) zorlayarak bağlanır. Railway gibi IPv6 yolu olmayan ortamlarda
+    Gmail'in IPv6 adresine düşüp '[Errno 101] Network is unreachable' almayı önler."""
+    last_err = None
+    for af, socktype, proto, _canon, sa in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+        sock = None
+        try:
+            sock = socket.socket(af, socktype, proto)
+            sock.settimeout(timeout)
+            sock.connect(sa)
+            return sock
+        except OSError as e:
+            last_err = e
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+    raise last_err or OSError(f"{host}:{port} için IPv4 bağlantısı kurulamadı")
+
+
+class _SMTP_SSL_IPv4(smtplib.SMTP_SSL):
+    """SMTP_SSL ama bağlantıyı IPv4'e zorlar. TLS sunucu adı doğrulaması korunur."""
+    def _get_socket(self, host, port, timeout):
+        sock = _connect_ipv4(host, port, timeout)
+        return self.context.wrap_socket(sock, server_hostname=self._host)
+
+
+class _SMTP_IPv4(smtplib.SMTP):
+    """SMTP (STARTTLS) ama bağlantıyı IPv4'e zorlar."""
+    def _get_socket(self, host, port, timeout):
+        return _connect_ipv4(host, port, timeout)
 _MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
 _BOLD_RE = re.compile(r"\*\*([^*]+)\*\*")
 _BARE_URL_RE = re.compile(r"(https?://[^\s<]+)")
@@ -133,11 +168,11 @@ def send_email(to: str, subject: str, body: str, *, smtp: dict,
     port = int(smtp.get("port") or 465)
     ctx = ssl.create_default_context()
     if smtp.get("use_ssl", True):  # 465 (SSL)
-        with smtplib.SMTP_SSL(host, port, context=ctx, timeout=20) as s:
+        with _SMTP_SSL_IPv4(host, port, context=ctx, timeout=20) as s:
             s.login(user, smtp["password"])
             s.send_message(msg)
     else:  # 587 (STARTTLS)
-        with smtplib.SMTP(host, port, timeout=20) as s:
+        with _SMTP_IPv4(host, port, timeout=20) as s:
             s.starttls(context=ctx)
             s.login(user, smtp["password"])
             s.send_message(msg)
