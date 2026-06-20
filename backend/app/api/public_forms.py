@@ -8,11 +8,13 @@ from datetime import datetime, timedelta
 import re
 import threading
 
-from fastapi import APIRouter, Body, HTTPException, Request, Depends
+from fastapi import APIRouter, Body, HTTPException, Request, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import SeminarForm, SeminarRegistration
+from app.database import get_db, SessionLocal
+from app.models import SeminarForm, SeminarRegistration, Company
+from app.services.email import send_email, render_template
+from app.api.mail_settings import get_effective_mail_settings
 from app.utils import iso_utc
 
 
@@ -139,8 +141,50 @@ def _validate_answer(field: dict, value):
     return text
 
 
+def _find_recipient_email(form: SeminarForm, normalized: dict) -> str | None:
+    """Formdaki ilk 'email' tipi alanın doğrulanmış (lowercase) değerini döner."""
+    for field in (form.fields or []):
+        if field.get("type") == "email":
+            val = normalized.get(field["key"])
+            if val and isinstance(val, str):
+                return val
+    return None
+
+
+def _send_registration_email(form_id, company_id, subject_tpl, body_tpl, to_email, answers):
+    """BackgroundTask hedefi: kayıt sonrası otomatik e-posta. Kendi DB session'ını açar.
+    Hata yukarı SIZMAMALI — sadece loglanır (kayıt zaten commit edildi)."""
+    db2 = SessionLocal()
+    try:
+        settings = get_effective_mail_settings(db2)
+        if not settings:
+            return  # mail ayarları yok → no-op
+        reply_to = None
+        from_name = None
+        logo_url = None
+        if company_id:
+            c = db2.query(Company).filter(Company.id == company_id, Company.is_active == True).first()
+            if c:
+                reply_to = c.email
+                from_name = c.name
+                logo_url = c.logo_url
+        send_email(
+            to_email,
+            render_template(subject_tpl or "", answers),
+            render_template(body_tpl or "", answers),
+            smtp=settings,
+            reply_to=reply_to,
+            from_name=from_name,
+            logo_url=logo_url,
+        )
+    except Exception as e:
+        print(f"Seminer kayıt e-posta gönderim hatası (form {form_id}):", e)
+    finally:
+        db2.close()
+
+
 @router.post("/public/forms/{slug}/register")
-def register_public_form(slug: str, request: Request, body: dict = Body(...), db: Session = Depends(get_db)):
+def register_public_form(slug: str, request: Request, background: BackgroundTasks, body: dict = Body(...), db: Session = Depends(get_db)):
     f = db.query(SeminarForm).filter(SeminarForm.slug == slug, SeminarForm.is_active == True).first()
     if not f:
         raise HTTPException(404, "Form bulunamadı veya aktif değil")
@@ -167,6 +211,17 @@ def register_public_form(slug: str, request: Request, body: dict = Body(...), db
     db.add(reg)
     db.commit()
     db.refresh(reg)
+
+    # Otomatik e-posta: form açıksa, mail ayarları varsa ve alıcı e-postası bulunabiliyorsa,
+    # yanıttan sonra arka planda gönder. Aksi halde sessiz no-op.
+    if getattr(f, "email_autosend", False):
+        to_email = _find_recipient_email(f, normalized)
+        if to_email and get_effective_mail_settings(db):
+            background.add_task(
+                _send_registration_email,
+                f.id, f.company_id, f.email_subject, f.email_body, to_email, normalized,
+            )
+
     return {
         "status": "ok",
         "id": reg.id,

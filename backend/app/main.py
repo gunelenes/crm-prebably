@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.database import engine
 from app.models import Base
-from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api, bank_accounts as bank_accounts_api, payments as payments_api, dashboard as dashboard_api, advertising as advertising_api, issues as issues_api, seminar_forms as seminar_forms_api, public_forms as public_forms_api
+from app.api import webhook, messages, quick_replies, statuses, contacts, auth as auth_api, users as users_api, sectors as sectors_api, training_sets as training_sets_api, bank_accounts as bank_accounts_api, payments as payments_api, dashboard as dashboard_api, advertising as advertising_api, issues as issues_api, seminar_forms as seminar_forms_api, public_forms as public_forms_api, companies as companies_api, mail_settings as mail_settings_api
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 http_client: httpx.AsyncClient | None = None
@@ -54,6 +54,13 @@ async def lifespan(app: FastAPI):
             conn.exec_driver_sql(
                 "ALTER TABLE contact_links ADD COLUMN IF NOT EXISTS primary_contact_id INTEGER"
             )
+            # Seminer formu otomatik e-posta alanları (companies tablosu create_all ile oluşur).
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS company_id INTEGER")
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS email_subject TEXT")
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS email_body TEXT")
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS email_autosend BOOLEAN DEFAULT FALSE")
+            # companies tablosu önceki deploy'da logo_url'süz oluşmuş olabilir.
+            conn.exec_driver_sql("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)")
             # Sık kullanılan filtre/join kolonlarına index (mevcut tablolar için).
             for ddl in (
                 "CREATE INDEX IF NOT EXISTS ix_conversations_contact_id ON conversations (contact_id)",
@@ -124,6 +131,8 @@ app.include_router(issues_api.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 app.include_router(seminar_forms_api.router, prefix="/api")
 app.include_router(public_forms_api.router, prefix="/api")
+app.include_router(companies_api.router, prefix="/api")
+app.include_router(mail_settings_api.router, prefix="/api")
 
 app.state.sio = sio
 

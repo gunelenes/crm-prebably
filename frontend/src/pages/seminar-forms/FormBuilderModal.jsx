@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../../api";
 import Spinner from "../../components/Spinner";
 
@@ -62,6 +62,52 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
   const [redirectUrl, setRedirectUrl] = useState(form?.thank_you_redirect_url || "");
   const [isActive, setIsActive] = useState(form?.is_active ?? true);
   const [saving, setSaving] = useState(false);
+
+  // Otomatik e-posta
+  const [companies, setCompanies] = useState([]);
+  const [companyId, setCompanyId] = useState(form?.company_id ? String(form.company_id) : "");
+  const [emailSubject, setEmailSubject] = useState(form?.email_subject || "");
+  const [emailBody, setEmailBody] = useState(form?.email_body || "");
+  const [emailAutosend, setEmailAutosend] = useState(form?.email_autosend ?? false);
+
+  useEffect(() => {
+    api.get("/companies").then((r) => setCompanies(r.data)).catch(() => setCompanies([]));
+  }, []);
+
+  // İçeriğe değişken eklemek için kullanılabilir alan anahtarları
+  const varKeys = fields.map((f) => (f.key || slugifyKey(f.label))).filter(Boolean);
+  const emailBodyRef = useRef(null);
+
+  // Seçili metni başına/sonuna ekleyerek sarar (kalın, link). Seçim yoksa placeholder kullanır.
+  const wrapSelection = (before, after, placeholder) => {
+    const el = emailBodyRef.current;
+    if (!el) {
+      setEmailBody((b) => b + before + placeholder + after);
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const sel = emailBody.slice(start, end) || placeholder;
+    const next = emailBody.slice(0, start) + before + sel + after + emailBody.slice(end);
+    setEmailBody(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + before.length;
+      el.setSelectionRange(pos, pos + sel.length);
+    });
+  };
+  const insertVar = (k) => {
+    const token = `{${k}}`;
+    const el = emailBodyRef.current;
+    if (!el) { setEmailBody((b) => (b ? `${b} ${token}` : token)); return; }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    setEmailBody(emailBody.slice(0, start) + token + emailBody.slice(end));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
 
   useEffect(() => {
     if (!slugTouched && title) {
@@ -140,6 +186,10 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
         thank_you_message: thankYouMessage.trim(),
         thank_you_redirect_url: redirectUrl.trim(),
         is_active: isActive,
+        company_id: companyId ? Number(companyId) : null,
+        email_subject: emailSubject.trim(),
+        email_body: emailBody.trim(),
+        email_autosend: emailAutosend,
       };
       if (isEdit) {
         await api.put(`/seminar-forms/${form.id}`, payload);
@@ -352,6 +402,105 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
               placeholder="Yönlendirme linki (opsiyonel, ör. WhatsApp grubu) — https://..."
               className={inputCls}
             />
+          </div>
+
+          {/* Otomatik e-posta */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-white/10 p-4 bg-slate-50/50 dark:bg-white/5 space-y-3">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+              📧 Otomatik E-posta
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 -mt-1">
+              Açarsan, forma e-posta adresiyle kayıt olan herkese otomatik bir mail gider.
+              Gönderen ismi seçtiğin şirket olur; mail "info@baharatmedya.net" üzerinden gönderilir.
+            </p>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">
+                Gönderen Şirket (yanıt adresi)
+              </label>
+              <select
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Şirket seçilmedi</option>
+                {companies.filter((c) => c.is_active).map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name} ({c.email})
+                  </option>
+                ))}
+              </select>
+              {companies.length === 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  Henüz şirket yok. Parametreler → Şirket Bilgileri'nden ekleyebilirsin.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">
+                Mail Konusu
+              </label>
+              <input
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Örn: Merhaba {ad}, kaydın alındı!"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">
+                Mail İçeriği
+              </label>
+              <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                <button type="button" onClick={() => wrapSelection("**", "**", "kalın yazı")}
+                  className="text-xs font-bold px-2.5 py-1 rounded-md bg-white/80 dark:bg-white/10 hover:bg-white dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-white/10 transition-colors"
+                  title="Seçili metni kalın yapar">B</button>
+                <button type="button" onClick={() => wrapSelection("[", "](https://)", "bağlantı metni")}
+                  className="text-xs px-2.5 py-1 rounded-md bg-white/80 dark:bg-white/10 hover:bg-white dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-white/10 transition-colors"
+                  title="Bağlantı (link) ekler">🔗 Link</button>
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  Kalın için **metin**, link için [metin](https://...)
+                </span>
+              </div>
+              <textarea
+                ref={emailBodyRef}
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                placeholder={"Merhaba {ad},\n\nSeminere kaydın başarıyla alındı. Detaylar yakında bu adrese gönderilecek.\n\nSevgiler."}
+                rows={6}
+                className={`${inputCls} resize-none`}
+              />
+              {varKeys.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">Değişken ekle:</span>
+                  {varKeys.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => insertVar(k)}
+                      className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-300/40 dark:border-fuchsia-500/30 hover:bg-fuchsia-500/20 transition-colors"
+                    >
+                      {`{${k}}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none pt-1">
+              <input
+                type="checkbox"
+                checked={emailAutosend}
+                onChange={(e) => setEmailAutosend(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-300 dark:bg-slate-700 rounded-full peer peer-checked:bg-gradient-to-r peer-checked:from-fuchsia-500 peer-checked:to-indigo-500 after:content-[''] after:absolute after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5 relative" />
+              <span className="text-sm text-slate-700 dark:text-slate-200">
+                Kayıttan sonra otomatik e-posta gönder
+              </span>
+            </label>
           </div>
 
           {/* Aktif toggle */}

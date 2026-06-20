@@ -169,6 +169,35 @@ class BankAccount(Base):
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
+class Company(Base):
+    """Seminer formlarında gönderen kimliği — Parametreler → Şirket Bilgileri'nden yönetilir.
+    Tek Gmail hesabından gönderim yapılır; From sabittir, şirketin e-postası Reply-To'ya
+    ve şirket adı From görünen ada yazılır. Yeni tablo olduğu için create_all oluşturur."""
+    __tablename__ = "companies"
+    id                 = Column(Integer, primary_key=True, index=True)
+    name               = Column(String(150), nullable=False)
+    email              = Column(String(255), nullable=False)
+    logo_url           = Column(String(500), nullable=True)  # mail başlığında gösterilir
+    is_active          = Column(Boolean, default=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by         = relationship("User", foreign_keys=[created_by_user_id])
+
+class MailSettings(Base):
+    """Otomatik e-posta gönderimi için SMTP kimlik bilgileri — Parametreler → Mail Ayarları'ndan
+    yönetilir. Tek satır (id=1) kullanılır. App Password, password_enc'te şifreli saklanır
+    (bkz. services/crypto.py). Yeni tablo olduğu için create_all oluşturur."""
+    __tablename__ = "mail_settings"
+    id                 = Column(Integer, primary_key=True, index=True)
+    smtp_host          = Column(String(200), default="smtp.gmail.com")
+    smtp_port          = Column(Integer, default=465)
+    use_ssl            = Column(Boolean, default=True)
+    smtp_user          = Column(String(255), nullable=True)   # gönderen e-posta
+    password_enc       = Column(Text, nullable=True)          # şifreli App Password
+    from_name          = Column(String(150), nullable=True)
+    updated_at         = Column(DateTime, default=datetime.utcnow)
+    updated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
 class Payment(Base):
     __tablename__ = "payments"
     id                  = Column(Integer, primary_key=True, index=True)
@@ -277,9 +306,16 @@ class SeminarForm(Base):
     thank_you_message       = Column(Text, nullable=True)
     thank_you_redirect_url  = Column(String(500), nullable=True)
     is_active               = Column(Boolean, default=True)
+    # Otomatik e-posta: kayıt sonrası bu şablonla mail gönderilir (opsiyonel).
+    # company_id seçilirse o şirketin maili Reply-To, adı From görünen ad olur.
+    company_id              = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    email_subject           = Column(Text, nullable=True)
+    email_body              = Column(Text, nullable=True)
+    email_autosend          = Column(Boolean, default=False)
     created_at              = Column(DateTime, default=datetime.utcnow)
     created_by_user_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by              = relationship("User", foreign_keys=[created_by_user_id])
+    company                 = relationship("Company", foreign_keys=[company_id])
     registrations           = relationship(
         "SeminarRegistration",
         back_populates="form",

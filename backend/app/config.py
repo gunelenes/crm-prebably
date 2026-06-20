@@ -38,6 +38,16 @@ META_AD_ACCOUNTS = os.getenv("META_AD_ACCOUNTS", "")
 
 VALID_AD_PURPOSES = {"wix_kayit", "ig_dm", "wa_dm", "genel"}
 
+# --- Otomatik seminer e-postası (Gmail SMTP, tek hesap + App Password) ---
+# SMTP_PASSWORD = Gmail 16 haneli "Uygulama Şifresi" (2 Adımlı Doğrulama açık olmalı).
+# Boş bırakılırsa gönderim yapılmaz (no-op); kayıt yine de oluşur.
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "")
+SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "true").lower() in ("1", "true", "yes")
+
 
 def get_configured_ad_accounts():
     """META_AD_ACCOUNTS env'ini [{act_id, name, purpose}, ...] listesine ayrıştırır.

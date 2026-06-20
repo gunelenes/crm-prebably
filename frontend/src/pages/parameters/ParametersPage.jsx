@@ -5,6 +5,8 @@ import SectorsTab from "./SectorsTab";
 import TrainingSetsTab from "./TrainingSetsTab";
 import BankAccountsTab from "./BankAccountsTab";
 import AdAccountsTab from "./AdAccountsTab";
+import CompaniesTab from "./CompaniesTab";
+import MailSettingsTab from "./MailSettingsTab";
 
 const TABS = [
   { id: "statuses", label: "Statüler", icon: "🏷️", Component: StatusesTab },
@@ -12,6 +14,8 @@ const TABS = [
   { id: "training_sets", label: "Eğitim Setleri", icon: "🎬", Component: TrainingSetsTab },
   { id: "bank_accounts", label: "Banka Hesapları", icon: "🏦", Component: BankAccountsTab, adminOnly: true },
   { id: "ad_accounts", label: "Reklam Hesapları", icon: "📊", Component: AdAccountsTab, adminOnly: true },
+  { id: "companies", label: "Şirket Bilgileri", icon: "🏢", Component: CompaniesTab, adminOnly: true },
+  { id: "mail", label: "Mail Ayarları", icon: "✉️", Component: MailSettingsTab, adminOnly: true },
 ];
 
 export default function ParametersPage() {

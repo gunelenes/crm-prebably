@@ -81,6 +81,10 @@ def _serialize_form(f: SeminarForm, registration_count: int | None = None) -> di
         "thank_you_message": f.thank_you_message,
         "thank_you_redirect_url": f.thank_you_redirect_url,
         "is_active": f.is_active,
+        "company_id": f.company_id,
+        "email_subject": f.email_subject,
+        "email_body": f.email_body,
+        "email_autosend": f.email_autosend,
         "created_at": iso_utc(f.created_at),
         "created_by_user_id": f.created_by_user_id,
         "registration_count": registration_count,
@@ -134,6 +138,10 @@ def create_seminar_form(
         thank_you_message=(body.get("thank_you_message") or "").strip() or None,
         thank_you_redirect_url=redirect_url,
         is_active=bool(body.get("is_active", True)),
+        company_id=(int(body["company_id"]) if body.get("company_id") else None),
+        email_subject=(body.get("email_subject") or "").strip() or None,
+        email_body=(body.get("email_body") or "").strip() or None,
+        email_autosend=bool(body.get("email_autosend", False)),
         created_by_user_id=current_user.id,
     )
     db.add(f)
@@ -181,6 +189,19 @@ def update_seminar_form(
 
     if "is_active" in body:
         f.is_active = bool(body.get("is_active"))
+
+    if "company_id" in body:
+        cid = body.get("company_id")
+        f.company_id = int(cid) if cid else None
+
+    if "email_subject" in body:
+        f.email_subject = (body.get("email_subject") or "").strip() or None
+
+    if "email_body" in body:
+        f.email_body = (body.get("email_body") or "").strip() or None
+
+    if "email_autosend" in body:
+        f.email_autosend = bool(body.get("email_autosend"))
 
     db.commit()
     db.refresh(f)
