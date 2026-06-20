@@ -172,7 +172,7 @@ def _send_registration_email(form_id, company_id, subject_tpl, body_tpl, to_emai
             to_email,
             render_template(subject_tpl or "", answers),
             render_template(body_tpl or "", answers),
-            smtp=settings,
+            settings=settings,
             reply_to=reply_to,
             from_name=from_name,
             logo_url=logo_url,

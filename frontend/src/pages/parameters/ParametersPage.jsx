@@ -22,7 +22,11 @@ export default function ParametersPage() {
   const { user } = useAuth();
   const visibleTabs = TABS.filter((t) => !t.adminOnly || user?.role === "admin");
 
-  const [active, setActive] = useState(visibleTabs[0]?.id || "statuses");
+  // OAuth dönüşünde (?mail=connected/error) doğrudan Mail Ayarları sekmesini aç
+  const [active, setActive] = useState(() => {
+    if (new URLSearchParams(window.location.search).get("mail")) return "mail";
+    return visibleTabs[0]?.id || "statuses";
+  });
 
   // Eğer aktif tab gizli olduysa ilk görünüre düş
   useEffect(() => {

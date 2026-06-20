@@ -61,6 +61,12 @@ async def lifespan(app: FastAPI):
             conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS email_autosend BOOLEAN DEFAULT FALSE")
             # companies tablosu önceki deploy'da logo_url'süz oluşmuş olabilir.
             conn.exec_driver_sql("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)")
+            # mail_settings: Gmail API provider'ı için yeni kolonlar (tablo önceki deploy'da oluştu).
+            conn.exec_driver_sql("ALTER TABLE mail_settings ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'gmail_oauth'")
+            conn.exec_driver_sql("ALTER TABLE mail_settings ADD COLUMN IF NOT EXISTS google_sa_json_enc TEXT")
+            conn.exec_driver_sql("ALTER TABLE mail_settings ADD COLUMN IF NOT EXISTS google_client_id VARCHAR(255)")
+            conn.exec_driver_sql("ALTER TABLE mail_settings ADD COLUMN IF NOT EXISTS google_client_secret_enc TEXT")
+            conn.exec_driver_sql("ALTER TABLE mail_settings ADD COLUMN IF NOT EXISTS google_refresh_token_enc TEXT")
             # Sık kullanılan filtre/join kolonlarına index (mevcut tablolar için).
             for ddl in (
                 "CREATE INDEX IF NOT EXISTS ix_conversations_contact_id ON conversations (contact_id)",

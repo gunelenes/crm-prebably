@@ -10,14 +10,22 @@ basit biçimlendirme desteklenir: **kalın**, [metin](https://link), ve düz URL
 Stdlib smtplib + email.message kullanılır — yeni bağımlılık yok. Gönderim hatası
 çağıranı KIRMAMALI; hatayı çağıran taraf (BackgroundTask) yakalayıp loglar."""
 
+import base64
 import re
 import smtplib
 import socket
 import ssl
+import time
 from email.message import EmailMessage
 from html import escape as _html_escape
 
+import httpx
+import jwt
+
 _VAR_RE = re.compile(r"\{([a-z0-9_]+)\}")
+
+GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+_GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 
 def _connect_ipv4(host: str, port: int, timeout: int) -> socket.socket:
@@ -57,10 +65,18 @@ _BOLD_RE = re.compile(r"\*\*([^*]+)\*\*")
 _BARE_URL_RE = re.compile(r"(https?://[^\s<]+)")
 
 
-def smtp_configured(smtp: dict | None) -> bool:
-    """Verilen SMTP ayar sözlüğü gönderim için yeterli mi?
-    smtp: {host, port, use_ssl, user, password, from_name}."""
-    return bool(smtp and smtp.get("host") and smtp.get("user") and smtp.get("password"))
+def mail_configured(settings: dict | None) -> bool:
+    """Verilen ayar sözlüğü gönderim için yeterli mi? provider'a göre kontrol eder."""
+    if not settings:
+        return False
+    provider = settings.get("provider")
+    if provider == "gmail_oauth":
+        return bool(settings.get("client_id") and settings.get("client_secret")
+                    and settings.get("refresh_token") and settings.get("sender"))
+    if provider == "gmail_api":
+        return bool(settings.get("sa_json") and settings.get("sender"))
+    # smtp
+    return bool(settings.get("host") and settings.get("user") and settings.get("password"))
 
 
 def _format_value(value) -> str:
@@ -140,30 +156,25 @@ def build_email_html(body_text: str, logo_url: str | None = None, from_name: str
     )
 
 
-def send_email(to: str, subject: str, body: str, *, smtp: dict,
-               reply_to: str | None = None, from_name: str | None = None,
-               logo_url: str | None = None) -> None:
-    """Tek bir e-posta gönderir (HTML + düz metin yedeği). SMTP yapılandırılmamışsa no-op.
-
-    smtp: {host, port, use_ssl, user, password, from_name} (DB'den ya da env fallback).
-    `body` basit biçimlendirme içerebilir (**kalın**, [metin](url)). Hata fırlatabilir
-    (SMTP/ağ); çağıran taraf yakalamalıdır."""
-    if not smtp_configured(smtp) or not to:
-        return
-
-    user = smtp["user"]
-    display = (from_name or smtp.get("from_name") or "").strip()
-
+def _build_message(to: str, subject: str, body: str, sender: str,
+                   reply_to: str | None, from_name: str | None, logo_url: str | None) -> EmailMessage:
+    """Ortak MIME mesajı: From/To/Subject/Reply-To + düz metin yedeği + HTML alternatif."""
+    display = (from_name or "").strip()
     msg = EmailMessage()
-    msg["From"] = f"{display} <{user}>" if display else user
+    msg["From"] = f"{display} <{sender}>" if display else sender
     msg["To"] = to
     msg["Subject"] = subject or ""
     if reply_to:
         msg["Reply-To"] = reply_to
-
     msg.set_content(body or "")  # düz metin yedeği
     msg.add_alternative(build_email_html(body or "", logo_url, from_name), subtype="html")
+    return msg
 
+
+def _send_smtp(msg: EmailMessage, smtp: dict) -> None:
+    """SMTP üzerinden gönderir (IPv4 zorlanmış). Railway SMTP'yi engellediği için
+    pratikte sadece lokal/uygun ağlarda çalışır; Gmail API yolu önceliklidir."""
+    user = smtp["user"]
     host = smtp["host"]
     port = int(smtp.get("port") or 465)
     ctx = ssl.create_default_context()
@@ -176,3 +187,88 @@ def send_email(to: str, subject: str, body: str, *, smtp: dict,
             s.starttls(context=ctx)
             s.login(user, smtp["password"])
             s.send_message(msg)
+
+
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+
+def _gmail_token_sa(sa: dict, impersonate: str) -> str:
+    """Servis hesabı (domain-wide delegation) ile gmail.send access_token alır.
+    `impersonate` = gönderilecek hesap (örn. info@baharatmedya.net)."""
+    now = int(time.time())
+    token_uri = sa.get("token_uri") or _GOOGLE_TOKEN_URL
+    claims = {
+        "iss": sa["client_email"],
+        "sub": impersonate,
+        "scope": GMAIL_SCOPE,
+        "aud": token_uri,
+        "iat": now,
+        "exp": now + 3600,
+    }
+    assertion = jwt.encode(claims, sa["private_key"], algorithm="RS256")
+    with httpx.Client(timeout=20) as client:
+        r = client.post(token_uri, data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": assertion,
+        })
+    if r.status_code != 200:
+        raise RuntimeError(f"Google token hatası {r.status_code}: {r.text}")
+    return r.json()["access_token"]
+
+
+def _gmail_token_oauth(client_id: str, client_secret: str, refresh_token: str) -> str:
+    """OAuth refresh token ile gmail.send access_token alır ('Google ile Bağlan' yöntemi)."""
+    with httpx.Client(timeout=20) as client:
+        r = client.post(_GOOGLE_TOKEN_URL, data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        })
+    if r.status_code != 200:
+        raise RuntimeError(f"Google token hatası {r.status_code}: {r.text}")
+    return r.json()["access_token"]
+
+
+def _gmail_send_raw(msg: EmailMessage, access_token: str) -> None:
+    """Hazır access_token ile mesajı Gmail API'den gönderir. HTTPS (443) — Railway engellemez."""
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    with httpx.Client(timeout=30) as client:
+        r = client.post(
+            _GMAIL_SEND_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"raw": raw},
+        )
+    if r.status_code not in (200, 202):
+        raise RuntimeError(f"Gmail API gönderim hatası {r.status_code}: {r.text}")
+
+
+def send_email(to: str, subject: str, body: str, *, settings: dict,
+               reply_to: str | None = None, from_name: str | None = None,
+               logo_url: str | None = None) -> None:
+    """Tek bir e-posta gönderir (HTML + düz metin yedeği). Yapılandırılmamışsa no-op.
+
+    settings: get_effective_mail_settings'in döndürdüğü sözlük (provider'a göre dallanır).
+    `body` basit biçimlendirme içerebilir (**kalın**, [metin](url)). Hata fırlatabilir;
+    çağıran taraf yakalamalıdır."""
+    if not mail_configured(settings) or not to:
+        return
+
+    provider = settings.get("provider")
+    if provider == "gmail_oauth":
+        sender = settings["sender"]
+        msg = _build_message(to, subject, body, sender, reply_to,
+                             from_name or settings.get("from_name"), logo_url)
+        token = _gmail_token_oauth(settings["client_id"], settings["client_secret"], settings["refresh_token"])
+        _gmail_send_raw(msg, token)
+    elif provider == "gmail_api":
+        sender = settings["sender"]
+        msg = _build_message(to, subject, body, sender, reply_to,
+                             from_name or settings.get("from_name"), logo_url)
+        token = _gmail_token_sa(settings["sa_json"], sender)
+        _gmail_send_raw(msg, token)
+    else:  # smtp
+        sender = settings["user"]
+        msg = _build_message(to, subject, body, sender, reply_to,
+                             from_name or settings.get("from_name"), logo_url)
+        _send_smtp(msg, settings)

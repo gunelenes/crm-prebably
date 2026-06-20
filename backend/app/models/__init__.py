@@ -189,11 +189,17 @@ class MailSettings(Base):
     (bkz. services/crypto.py). Yeni tablo olduğu için create_all oluşturur."""
     __tablename__ = "mail_settings"
     id                 = Column(Integer, primary_key=True, index=True)
+    provider           = Column(String(20), default="gmail_oauth")  # gmail_oauth | gmail_api | smtp
     smtp_host          = Column(String(200), default="smtp.gmail.com")
     smtp_port          = Column(Integer, default=465)
     use_ssl            = Column(Boolean, default=True)
-    smtp_user          = Column(String(255), nullable=True)   # gönderen e-posta
-    password_enc       = Column(Text, nullable=True)          # şifreli App Password
+    smtp_user          = Column(String(255), nullable=True)   # gönderen / impersonate edilen e-posta
+    password_enc       = Column(Text, nullable=True)          # şifreli App Password (smtp)
+    google_sa_json_enc = Column(Text, nullable=True)          # şifreli servis hesabı JSON (gmail_api)
+    # OAuth (gmail_oauth — admin gerektirmez): "Google ile Bağlan" akışı
+    google_client_id          = Column(String(255), nullable=True)
+    google_client_secret_enc  = Column(Text, nullable=True)   # şifreli OAuth client secret
+    google_refresh_token_enc  = Column(Text, nullable=True)   # şifreli refresh token (callback'te set edilir)
     from_name          = Column(String(150), nullable=True)
     updated_at         = Column(DateTime, default=datetime.utcnow)
     updated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
