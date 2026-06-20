@@ -21,10 +21,40 @@ const COUNTRY_CODES = [
 const inputBase =
   "rounded-xl px-4 py-3 text-base transition-all " +
   "bg-white/80 backdrop-blur border border-slate-200 " +
-  "focus:outline-none focus:ring-4 focus:ring-fuchsia-300/40 focus:border-fuchsia-500 " +
+  "focus:outline-none focus:ring-4 focus:ring-purple-300/50 focus:border-purple-500 " +
   "text-slate-900 placeholder:text-slate-400";
 
 const inputCls = `w-full ${inputBase}`;
+
+const LOGO_SRC = "/i.webp";
+
+function WhatsAppIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0" aria-hidden="true">
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-5 h-5 shrink-0" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18" />
+    </svg>
+  );
+}
+
+function Logo() {
+  return (
+    <img
+      src={LOGO_SRC}
+      alt="Logo"
+      className="mx-auto mb-4 h-16 w-auto object-contain drop-shadow-lg"
+      onError={(e) => { e.currentTarget.style.display = "none"; }}
+    />
+  );
+}
 
 export default function PublicFormPage() {
   const { slug } = useParams();
@@ -98,7 +128,8 @@ export default function PublicFormPage() {
       const res = await publicApi.post(`/public/forms/${slug}/register`, { answers: values });
       setSubmitted({
         message: res.data.thank_you_message || "Kaydın alındı! En kısa sürede sana ulaşacağız.",
-        redirect_url: res.data.thank_you_redirect_url || null,
+        whatsapp_url: res.data.whatsapp_url || null,
+        website_url: res.data.website_url || res.data.thank_you_redirect_url || null,
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -175,7 +206,7 @@ export default function PublicFormPage() {
               type="checkbox"
               checked={!!v}
               onChange={(e) => setValue(f.key, e.target.checked)}
-              className="w-5 h-5 rounded accent-fuchsia-500"
+              className="w-5 h-5 rounded accent-purple-600"
             />
             <span className="text-slate-700">{f.placeholder || "Onaylıyorum"}</span>
           </label>
@@ -220,12 +251,12 @@ export default function PublicFormPage() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 py-10 px-4 flex items-center justify-center">
-      {/* Dekoratif bloblar */}
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#7a28c0] via-[#641fa8] to-[#3f1374] py-10 px-4 flex items-center justify-center">
+      {/* Dekoratif bloblar — marka: mor zemin + altın vurgu */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-20 h-96 w-96 rounded-full bg-pink-300/40 blur-3xl animate-pulse" />
-        <div className="absolute top-1/3 -right-32 h-[28rem] w-[28rem] rounded-full bg-indigo-300/30 blur-3xl" />
-        <div className="absolute -bottom-32 left-1/3 h-96 w-96 rounded-full bg-fuchsia-300/40 blur-3xl animate-pulse" />
+        <div className="absolute -top-40 -left-20 h-96 w-96 rounded-full bg-amber-300/30 blur-3xl animate-pulse" />
+        <div className="absolute top-1/3 -right-32 h-[28rem] w-[28rem] rounded-full bg-violet-400/30 blur-3xl" />
+        <div className="absolute -bottom-32 left-1/3 h-96 w-96 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
       </div>
 
       <div className="relative w-full max-w-xl">
@@ -235,36 +266,57 @@ export default function PublicFormPage() {
           </div>
         ) : error ? (
           <div className="rounded-3xl bg-white/90 backdrop-blur-2xl shadow-2xl shadow-purple-500/30 p-10 text-center">
+            <Logo />
             <div className="text-6xl mb-3">🚫</div>
             <div className="text-xl font-bold text-slate-800 mb-2">Form Açılamadı</div>
             <p className="text-slate-600">{error}</p>
           </div>
         ) : submitted ? (
           <div className="rounded-3xl bg-white/90 backdrop-blur-2xl shadow-2xl shadow-purple-500/30 p-10 text-center">
+            <Logo />
             <div className="text-6xl mb-4 animate-bounce">🎉</div>
-            <div className="text-2xl font-extrabold bg-gradient-to-r from-fuchsia-600 to-indigo-600 bg-clip-text text-transparent mb-3">
+            <div className="text-2xl font-extrabold bg-gradient-to-r from-purple-700 to-violet-600 bg-clip-text text-transparent mb-3">
               Kaydın Alındı!
             </div>
             <p className="text-slate-700 whitespace-pre-line leading-relaxed">{submitted.message}</p>
-            {submitted.redirect_url && (
-              <a
-                href={submitted.redirect_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block mt-6 py-3 px-7 rounded-xl text-base font-semibold text-white
-                  bg-gradient-to-r from-fuchsia-500 to-indigo-500
-                  hover:from-fuchsia-600 hover:to-indigo-600
-                  shadow-lg shadow-fuchsia-500/40 hover:scale-[1.03] active:scale-[0.98] transition-transform"
-              >
-                Devam Et →
-              </a>
+
+            {(submitted.whatsapp_url || submitted.website_url) && (
+              <div className="mt-7 flex flex-col gap-3">
+                {submitted.whatsapp_url && (
+                  <a
+                    href={submitted.whatsapp_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl text-base font-bold text-white
+                      bg-gradient-to-r from-emerald-500 to-green-600
+                      hover:from-emerald-600 hover:to-green-700
+                      shadow-lg shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                  >
+                    <WhatsAppIcon /> WhatsApp Grubuna Katıl
+                  </a>
+                )}
+                {submitted.website_url && (
+                  <a
+                    href={submitted.website_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl text-base font-bold text-white
+                      bg-gradient-to-r from-purple-600 to-violet-600
+                      hover:from-purple-700 hover:to-violet-700
+                      shadow-lg shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                  >
+                    <GlobeIcon /> Web Sitemizi Ziyaret Et
+                  </a>
+                )}
+              </div>
             )}
           </div>
         ) : (
           <form onSubmit={submit} className="rounded-3xl bg-white/90 backdrop-blur-2xl shadow-2xl shadow-purple-500/30 p-7 md:p-10">
             <div className="text-center mb-6">
-              <div className="text-5xl md:text-6xl mb-3 animate-bounce">🎓</div>
-              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-fuchsia-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
+              <Logo />
+              <div className="text-4xl md:text-5xl mb-2">🎓</div>
+              <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-700 via-violet-600 to-purple-700 bg-clip-text text-transparent leading-tight">
                 {form.title}
               </h1>
               {form.description && (
@@ -280,7 +332,7 @@ export default function PublicFormPage() {
                   {f.type !== "checkbox" && (
                     <label htmlFor={`f-${f.key}`} className="block text-sm font-semibold text-slate-700 mb-1.5">
                       {f.label}
-                      {f.required && <span className="text-fuchsia-500 ml-1">*</span>}
+                      {f.required && <span className="text-amber-500 ml-1">*</span>}
                     </label>
                   )}
                   {renderField(f)}
@@ -297,16 +349,16 @@ export default function PublicFormPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full mt-6 py-3.5 rounded-xl text-base font-semibold text-white transition-all
-                bg-gradient-to-r from-fuchsia-500 to-indigo-500
-                hover:from-fuchsia-600 hover:to-indigo-600
-                shadow-lg shadow-fuchsia-500/40 hover:shadow-fuchsia-500/60
+              className="w-full mt-6 py-3.5 rounded-xl text-base font-extrabold text-purple-900 transition-all
+                bg-gradient-to-r from-amber-300 to-yellow-400
+                hover:from-amber-400 hover:to-yellow-500
+                shadow-lg shadow-amber-500/40 hover:shadow-amber-500/60
                 hover:scale-[1.01] active:scale-[0.99]
-                disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none disabled:scale-100"
+                disabled:from-slate-300 disabled:to-slate-400 disabled:text-white disabled:shadow-none disabled:scale-100"
             >
               {submitting ? (
                 <span className="inline-flex items-center gap-2">
-                  <span className="inline-block animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4" />
+                  <span className="inline-block animate-spin border-2 border-purple-900 border-t-transparent rounded-full w-4 h-4" />
                   Gönderiliyor...
                 </span>
               ) : (

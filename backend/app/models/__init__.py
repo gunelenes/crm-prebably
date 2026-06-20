@@ -310,7 +310,9 @@ class SeminarForm(Base):
     description             = Column(Text, nullable=True)
     fields                  = Column(JSON, nullable=False, default=list)
     thank_you_message       = Column(Text, nullable=True)
-    thank_you_redirect_url  = Column(String(500), nullable=True)
+    thank_you_redirect_url  = Column(String(500), nullable=True)  # legacy (geriye dönük)
+    whatsapp_url            = Column(String(500), nullable=True)  # kayıt sonrası WhatsApp grubu linki
+    website_url             = Column(String(500), nullable=True)  # kayıt sonrası web sitesi linki
     is_active               = Column(Boolean, default=True)
     # Otomatik e-posta: kayıt sonrası bu şablonla mail gönderilir (opsiyonel).
     # company_id seçilirse o şirketin maili Reply-To, adı From görünen ad olur.

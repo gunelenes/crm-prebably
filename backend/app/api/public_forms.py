@@ -60,6 +60,8 @@ def _public_form_payload(f: SeminarForm) -> dict:
         "fields": f.fields or [],
         "thank_you_message": f.thank_you_message,
         "thank_you_redirect_url": f.thank_you_redirect_url,
+        "whatsapp_url": f.whatsapp_url,
+        "website_url": f.website_url,
     }
 
 
@@ -228,4 +230,6 @@ def register_public_form(slug: str, request: Request, background: BackgroundTask
         "created_at": iso_utc(reg.created_at),
         "thank_you_message": f.thank_you_message,
         "thank_you_redirect_url": f.thank_you_redirect_url,
+        "whatsapp_url": f.whatsapp_url,
+        "website_url": f.website_url,
     }

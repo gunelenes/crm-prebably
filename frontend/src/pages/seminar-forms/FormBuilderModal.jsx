@@ -59,7 +59,8 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
     form?.fields?.length ? form.fields.map((f) => ({ ...f, options: f.options || [] })) : []
   );
   const [thankYouMessage, setThankYouMessage] = useState(form?.thank_you_message || "");
-  const [redirectUrl, setRedirectUrl] = useState(form?.thank_you_redirect_url || "");
+  const [whatsappUrl, setWhatsappUrl] = useState(form?.whatsapp_url || "");
+  const [websiteUrl, setWebsiteUrl] = useState(form?.website_url || form?.thank_you_redirect_url || "");
   const [isActive, setIsActive] = useState(form?.is_active ?? true);
   const [saving, setSaving] = useState(false);
 
@@ -184,7 +185,8 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
           ...(f.type === "select" ? { options: f.options } : {}),
         })),
         thank_you_message: thankYouMessage.trim(),
-        thank_you_redirect_url: redirectUrl.trim(),
+        whatsapp_url: whatsappUrl.trim(),
+        website_url: websiteUrl.trim(),
         is_active: isActive,
         company_id: companyId ? Number(companyId) : null,
         email_subject: emailSubject.trim(),
@@ -396,12 +398,31 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
               rows={2}
               className={`${inputCls} resize-none`}
             />
-            <input
-              value={redirectUrl}
-              onChange={(e) => setRedirectUrl(e.target.value)}
-              placeholder="Yönlendirme linki (opsiyonel, ör. WhatsApp grubu) — https://..."
-              className={inputCls}
-            />
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400 block mb-1">
+                💬 WhatsApp grubu linki (opsiyonel)
+              </label>
+              <input
+                value={whatsappUrl}
+                onChange={(e) => setWhatsappUrl(e.target.value)}
+                placeholder="https://chat.whatsapp.com/..."
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-indigo-600 dark:text-indigo-400 block mb-1">
+                🌐 Web sitesi linki (opsiyonel)
+              </label>
+              <input
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="https://baharatmedya.net"
+                className={inputCls}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+              Girdiğin linkler kayıt sonrası teşekkür ekranında ayrı butonlar olarak gösterilir.
+            </p>
           </div>
 
           {/* Otomatik e-posta */}

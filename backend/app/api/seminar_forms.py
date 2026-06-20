@@ -25,6 +25,14 @@ ALLOWED_FIELD_TYPES = {"text", "email", "phone", "textarea", "select", "checkbox
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
+def _clean_url(value) -> str | None:
+    """Boş → None; doluysa http(s) ile başlamalı (yoksa 400)."""
+    url = (value or "").strip() or None
+    if url and not re.match(r"^https?://", url):
+        raise HTTPException(400, "Bağlantı http:// veya https:// ile başlamalı")
+    return url
+
+
 def _normalize_field(raw: dict, idx: int) -> dict:
     """Bir alan tanımını doğrular ve normalize eder. Geçersiz olanı 400 fırlatır."""
     if not isinstance(raw, dict):
@@ -80,6 +88,8 @@ def _serialize_form(f: SeminarForm, registration_count: int | None = None) -> di
         "fields": f.fields or [],
         "thank_you_message": f.thank_you_message,
         "thank_you_redirect_url": f.thank_you_redirect_url,
+        "whatsapp_url": f.whatsapp_url,
+        "website_url": f.website_url,
         "is_active": f.is_active,
         "company_id": f.company_id,
         "email_subject": f.email_subject,
@@ -137,6 +147,8 @@ def create_seminar_form(
         fields=fields,
         thank_you_message=(body.get("thank_you_message") or "").strip() or None,
         thank_you_redirect_url=redirect_url,
+        whatsapp_url=_clean_url(body.get("whatsapp_url")),
+        website_url=_clean_url(body.get("website_url")),
         is_active=bool(body.get("is_active", True)),
         company_id=(int(body["company_id"]) if body.get("company_id") else None),
         email_subject=(body.get("email_subject") or "").strip() or None,
@@ -182,10 +194,13 @@ def update_seminar_form(
         f.thank_you_message = (body.get("thank_you_message") or "").strip() or None
 
     if "thank_you_redirect_url" in body:
-        url = (body.get("thank_you_redirect_url") or "").strip() or None
-        if url and not re.match(r"^https?://", url):
-            raise HTTPException(400, "Yönlendirme URL'i http:// veya https:// ile başlamalı")
-        f.thank_you_redirect_url = url
+        f.thank_you_redirect_url = _clean_url(body.get("thank_you_redirect_url"))
+
+    if "whatsapp_url" in body:
+        f.whatsapp_url = _clean_url(body.get("whatsapp_url"))
+
+    if "website_url" in body:
+        f.website_url = _clean_url(body.get("website_url"))
 
     if "is_active" in body:
         f.is_active = bool(body.get("is_active"))
