@@ -313,6 +313,8 @@ class SeminarForm(Base):
     thank_you_redirect_url  = Column(String(500), nullable=True)  # legacy (geriye dönük)
     whatsapp_url            = Column(String(500), nullable=True)  # kayıt sonrası WhatsApp grubu linki
     website_url             = Column(String(500), nullable=True)  # kayıt sonrası web sitesi linki
+    whatsapp_number         = Column(String(32), nullable=True)   # wa.me direkt mesaj numarası
+    whatsapp_template       = Column(Text, nullable=True)         # wa.me hazır mesaj ({ad} gibi değişkenler)
     is_active               = Column(Boolean, default=True)
     # Otomatik e-posta: kayıt sonrası bu şablonla mail gönderilir (opsiyonel).
     # company_id seçilirse o şirketin maili Reply-To, adı From görünen ad olur.

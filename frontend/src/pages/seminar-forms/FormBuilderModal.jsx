@@ -61,6 +61,8 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
   const [thankYouMessage, setThankYouMessage] = useState(form?.thank_you_message || "");
   const [whatsappUrl, setWhatsappUrl] = useState(form?.whatsapp_url || "");
   const [websiteUrl, setWebsiteUrl] = useState(form?.website_url || form?.thank_you_redirect_url || "");
+  const [whatsappNumber, setWhatsappNumber] = useState(form?.whatsapp_number || "");
+  const [whatsappTemplate, setWhatsappTemplate] = useState(form?.whatsapp_template || "");
   const [isActive, setIsActive] = useState(form?.is_active ?? true);
   const [saving, setSaving] = useState(false);
 
@@ -187,6 +189,8 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
         thank_you_message: thankYouMessage.trim(),
         whatsapp_url: whatsappUrl.trim(),
         website_url: websiteUrl.trim(),
+        whatsapp_number: whatsappNumber.trim(),
+        whatsapp_template: whatsappTemplate.trim(),
         is_active: isActive,
         company_id: companyId ? Number(companyId) : null,
         email_subject: emailSubject.trim(),
@@ -416,12 +420,50 @@ export default function FormBuilderModal({ form = null, onClose, onSaved }) {
               <input
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
-                placeholder="https://baharatmedya.net"
+                placeholder="https://semtinkizi.com"
                 className={inputCls}
               />
             </div>
+
+            <div className="rounded-xl border border-emerald-300/40 dark:border-emerald-500/20 bg-emerald-50/40 dark:bg-emerald-500/5 p-3 space-y-2">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400 block">
+                📲 WhatsApp'tan yazdırma butonu (opsiyonel)
+              </label>
+              <input
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                placeholder="Numara (ülke koduyla, ör. 905551234567)"
+                className={inputCls}
+              />
+              <textarea
+                value={whatsappTemplate}
+                onChange={(e) => setWhatsappTemplate(e.target.value)}
+                placeholder={"Hazır mesaj — ör: Merhaba, ben {ad}, seminere kaydoldum, bilgi almak istiyorum."}
+                rows={2}
+                className={`${inputCls} resize-none`}
+              />
+              {varKeys.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">Değişken ekle:</span>
+                  {varKeys.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setWhatsappTemplate((t) => (t ? `${t} {${k}}` : `{${k}}`))}
+                      className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 dark:border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      {`{${k}}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                Numara + mesaj girersen, "WhatsApp'tan Bize Yaz" butonu çıkar; tıklayınca bu numaraya hazır mesajla sohbet açar.
+              </p>
+            </div>
+
             <p className="text-[11px] text-slate-400 dark:text-slate-500">
-              Girdiğin linkler kayıt sonrası teşekkür ekranında ayrı butonlar olarak gösterilir.
+              Girdiğin linkler/butonlar kayıt sonrası teşekkür ekranında ayrı butonlar olarak gösterilir.
             </p>
           </div>
 

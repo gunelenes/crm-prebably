@@ -62,6 +62,8 @@ def _public_form_payload(f: SeminarForm) -> dict:
         "thank_you_redirect_url": f.thank_you_redirect_url,
         "whatsapp_url": f.whatsapp_url,
         "website_url": f.website_url,
+        "whatsapp_number": f.whatsapp_number,
+        "whatsapp_template": f.whatsapp_template,
     }
 
 
@@ -232,4 +234,6 @@ def register_public_form(slug: str, request: Request, background: BackgroundTask
         "thank_you_redirect_url": f.thank_you_redirect_url,
         "whatsapp_url": f.whatsapp_url,
         "website_url": f.website_url,
+        "whatsapp_number": f.whatsapp_number,
+        "whatsapp_template": f.whatsapp_template,
     }

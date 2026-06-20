@@ -28,6 +28,29 @@ const inputCls = `w-full ${inputBase}`;
 
 const LOGO_SRC = "/i.webp";
 
+// Hazır WhatsApp mesajındaki {alan} kalıplarını gönderilen cevaplarla doldurur.
+function renderWaTemplate(tpl, values) {
+  if (!tpl) return "";
+  return tpl.replace(/\{([a-z0-9_]+)\}/gi, (_, k) => {
+    const v = values?.[k];
+    if (v == null) return "";
+    if (typeof v === "object") {
+      if ("number" in v) return `${(v.code || "").trim()} ${(v.number || "").trim()}`.trim();
+      return "";
+    }
+    if (typeof v === "boolean") return v ? "Evet" : "Hayır";
+    return String(v);
+  });
+}
+
+// wa.me linki üretir (numarayı sadece rakamlara indirger, mesajı URL-encode eder).
+function buildWaLink(number, template, values) {
+  const digits = (number || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const text = renderWaTemplate(template, values);
+  return `https://wa.me/${digits}${text ? "?text=" + encodeURIComponent(text) : ""}`;
+}
+
 function WhatsAppIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0" aria-hidden="true">
@@ -130,6 +153,8 @@ export default function PublicFormPage() {
         message: res.data.thank_you_message || "Kaydın alındı! En kısa sürede sana ulaşacağız.",
         whatsapp_url: res.data.whatsapp_url || null,
         website_url: res.data.website_url || res.data.thank_you_redirect_url || null,
+        whatsapp_number: res.data.whatsapp_number || null,
+        whatsapp_template: res.data.whatsapp_template || "",
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -280,7 +305,7 @@ export default function PublicFormPage() {
             </div>
             <p className="text-slate-700 whitespace-pre-line leading-relaxed">{submitted.message}</p>
 
-            {(submitted.whatsapp_url || submitted.website_url) && (
+            {(submitted.whatsapp_url || submitted.whatsapp_number || submitted.website_url) && (
               <div className="mt-7 flex flex-col gap-3">
                 {submitted.whatsapp_url && (
                   <a
@@ -293,6 +318,19 @@ export default function PublicFormPage() {
                       shadow-lg shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98] transition-transform"
                   >
                     <WhatsAppIcon /> WhatsApp Grubuna Katıl
+                  </a>
+                )}
+                {buildWaLink(submitted.whatsapp_number, submitted.whatsapp_template, values) && (
+                  <a
+                    href={buildWaLink(submitted.whatsapp_number, submitted.whatsapp_template, values)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl text-base font-bold text-white
+                      bg-gradient-to-r from-green-600 to-teal-600
+                      hover:from-green-700 hover:to-teal-700
+                      shadow-lg shadow-green-600/40 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                  >
+                    <WhatsAppIcon /> WhatsApp'tan Bize Yaz
                   </a>
                 )}
                 {submitted.website_url && (

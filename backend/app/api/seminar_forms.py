@@ -90,6 +90,8 @@ def _serialize_form(f: SeminarForm, registration_count: int | None = None) -> di
         "thank_you_redirect_url": f.thank_you_redirect_url,
         "whatsapp_url": f.whatsapp_url,
         "website_url": f.website_url,
+        "whatsapp_number": f.whatsapp_number,
+        "whatsapp_template": f.whatsapp_template,
         "is_active": f.is_active,
         "company_id": f.company_id,
         "email_subject": f.email_subject,
@@ -149,6 +151,8 @@ def create_seminar_form(
         thank_you_redirect_url=redirect_url,
         whatsapp_url=_clean_url(body.get("whatsapp_url")),
         website_url=_clean_url(body.get("website_url")),
+        whatsapp_number=(body.get("whatsapp_number") or "").strip() or None,
+        whatsapp_template=(body.get("whatsapp_template") or "").strip() or None,
         is_active=bool(body.get("is_active", True)),
         company_id=(int(body["company_id"]) if body.get("company_id") else None),
         email_subject=(body.get("email_subject") or "").strip() or None,
@@ -201,6 +205,12 @@ def update_seminar_form(
 
     if "website_url" in body:
         f.website_url = _clean_url(body.get("website_url"))
+
+    if "whatsapp_number" in body:
+        f.whatsapp_number = (body.get("whatsapp_number") or "").strip() or None
+
+    if "whatsapp_template" in body:
+        f.whatsapp_template = (body.get("whatsapp_template") or "").strip() or None
 
     if "is_active" in body:
         f.is_active = bool(body.get("is_active"))

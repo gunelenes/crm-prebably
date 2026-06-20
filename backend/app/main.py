@@ -61,6 +61,8 @@ async def lifespan(app: FastAPI):
             conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS email_autosend BOOLEAN DEFAULT FALSE")
             conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS whatsapp_url VARCHAR(500)")
             conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)")
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(32)")
+            conn.exec_driver_sql("ALTER TABLE seminar_forms ADD COLUMN IF NOT EXISTS whatsapp_template TEXT")
             # companies tablosu önceki deploy'da logo_url'süz oluşmuş olabilir.
             conn.exec_driver_sql("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)")
             # mail_settings: Gmail API provider'ı için yeni kolonlar (tablo önceki deploy'da oluştu).
