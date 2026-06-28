@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../AuthContext";
 import StatusesTab from "./StatusesTab";
 import SectorsTab from "./SectorsTab";
+import CreativesTab from "./CreativesTab";
 import TrainingSetsTab from "./TrainingSetsTab";
 import BankAccountsTab from "./BankAccountsTab";
 import AdAccountsTab from "./AdAccountsTab";
@@ -11,6 +12,7 @@ import MailSettingsTab from "./MailSettingsTab";
 const TABS = [
   { id: "statuses", label: "Statüler", icon: "🏷️", Component: StatusesTab },
   { id: "sectors", label: "Sektörler", icon: "🏢", Component: SectorsTab },
+  { id: "creatives", label: "Kreatifler", icon: "🎨", Component: CreativesTab },
   { id: "training_sets", label: "Eğitim Setleri", icon: "🎬", Component: TrainingSetsTab },
   { id: "bank_accounts", label: "Banka Hesapları", icon: "🏦", Component: BankAccountsTab, adminOnly: true },
   { id: "ad_accounts", label: "Reklam Hesapları", icon: "📊", Component: AdAccountsTab, adminOnly: true },

@@ -20,7 +20,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function ContactProfileTab({ profile, sectors, trainingSets, contactId, onSaved }) {
+export default function ContactProfileTab({ profile, sectors, creatives = [], trainingSets, contactId, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(profile || {});
   const [saving, setSaving] = useState(false);
@@ -98,6 +98,18 @@ export default function ContactProfileTab({ profile, sectors, trainingSets, cont
                 </select>
               ) : (
                 <div className="text-sm text-slate-800 dark:text-slate-100">{profile.sector?.name || "—"}</div>
+              )}
+            </Field>
+            <Field label="Kreatif">
+              {editing ? (
+                <select value={form.creative_id || ""} onChange={(e) => setForm({ ...form, creative_id: e.target.value ? Number(e.target.value) : null })} className={inputCls}>
+                  <option value="">{creatives.length === 0 ? "Önce parametreler ekranından tanımla" : "Seç"}</option>
+                  {creatives.filter((c) => c.is_active || c.id === form.creative_id).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-slate-800 dark:text-slate-100">{profile.creative?.name || "—"}</div>
               )}
             </Field>
             <Field label="Hangi Videodan / Eğitim Seti">

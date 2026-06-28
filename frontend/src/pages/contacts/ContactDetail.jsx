@@ -20,7 +20,7 @@ const ALL_TABS = [
   { id: "reminders", label: "Hatırlatmalar" },
 ];
 
-export default function ContactDetail({ contactStub, contactId, statuses, sectors, trainingSets, onChanged, onSelectContact }) {
+export default function ContactDetail({ contactStub, contactId, statuses, sectors, creatives, trainingSets, onChanged, onSelectContact }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const TABS = ALL_TABS.filter((t) => !t.adminOnly || user?.role === "admin");
@@ -123,6 +123,11 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
                     🏢 {display.sector.name}
                   </span>
                 )}
+                {display.creative && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                    🎨 {display.creative.name}
+                  </span>
+                )}
                 {(display.training_set || display.training_set_id) && profile?.training_set && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300">
                     🎬 {profile.training_set.name}
@@ -187,6 +192,7 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
           <ContactProfileTab
             profile={profile}
             sectors={sectors}
+            creatives={creatives}
             trainingSets={trainingSets}
             onSaved={refresh}
             contactId={contactId}

@@ -136,6 +136,7 @@ def search_contacts(
     q: str = "",
     status_id: Optional[int] = None,
     sector_id: Optional[int] = None,
+    creative_id: Optional[int] = None,
     training_set_id: Optional[int] = None,
     assigned_to: Optional[str] = None,
     purchased: Optional[bool] = None,
@@ -198,6 +199,7 @@ def search_contacts(
         .options(
             joinedload(Contact.status),
             joinedload(Contact.sector),
+            joinedload(Contact.creative),
             joinedload(Contact.training_set),
         )
     )
@@ -214,6 +216,8 @@ def search_contacts(
         base_query = base_query.filter(Contact.status_id == status_id)
     if sector_id:
         base_query = base_query.filter(Contact.sector_id == sector_id)
+    if creative_id:
+        base_query = base_query.filter(Contact.creative_id == creative_id)
     if training_set_id:
         base_query = base_query.filter(Contact.training_set_id == training_set_id)
     if assigned_to:
@@ -302,6 +306,7 @@ def search_contacts(
             "knows_us": contact.knows_us,
             "status": serialize_status(contact.status),
             "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
+            "creative": {"id": contact.creative.id, "name": contact.creative.name} if contact.creative else None,
             "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
             "last_message_at": iso_utc(last_msg_at),
             "last_message_preview": preview,
@@ -515,6 +520,7 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
     contact = (db.query(Contact)
                .options(joinedload(Contact.status),
                         joinedload(Contact.sector),
+                        joinedload(Contact.creative),
                         joinedload(Contact.training_set),
                         joinedload(Contact.assigned_to_user))
                .filter(Contact.id == canonical)
@@ -552,6 +558,8 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "status": serialize_status(contact.status),
         "sector_id": contact.sector_id,
         "sector": {"id": contact.sector.id, "name": contact.sector.name} if contact.sector else None,
+        "creative_id": contact.creative_id,
+        "creative": {"id": contact.creative.id, "name": contact.creative.name} if contact.creative else None,
         "training_set_id": contact.training_set_id,
         "training_set": {"id": contact.training_set.id, "name": contact.training_set.name} if contact.training_set else None,
         "assigned_to_user_id": contact.assigned_to_user_id,
@@ -571,12 +579,12 @@ def update_contact(contact_id: int, body: dict = Body(...), _: User = Depends(ge
     fields = ["full_name", "phone", "email", "description", "knows_us",
               "previous_trainings", "purchase_potential",
               "had_training", "purchased", "reason_not_purchased",
-              "sector_id", "training_set_id", "assigned_to_user_id"]
+              "sector_id", "creative_id", "training_set_id", "assigned_to_user_id"]
     for field in fields:
         if field in body:
             value = body[field]
             # Boş string FK için NULL'a çevir
-            if field in ("sector_id", "training_set_id", "assigned_to_user_id") and (value == "" or value == 0):
+            if field in ("sector_id", "creative_id", "training_set_id", "assigned_to_user_id") and (value == "" or value == 0):
                 value = None
             setattr(contact, field, value)
     db.commit()

@@ -44,6 +44,16 @@ class TrainingSet(Base):
     created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by          = relationship("User", foreign_keys=[created_by_user_id])
 
+class Creative(Base):
+    __tablename__ = "creatives"
+    id                  = Column(Integer, primary_key=True, index=True)
+    name                = Column(String(100), nullable=False)
+    description         = Column(Text, nullable=True)
+    is_active           = Column(Boolean, default=True)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+    created_by_user_id  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by          = relationship("User", foreign_keys=[created_by_user_id])
+
 class Contact(Base):
     __tablename__ = "contacts"
     id                    = Column(Integer, primary_key=True, index=True)
@@ -64,11 +74,13 @@ class Contact(Base):
     assigned_to_user_id   = Column(Integer, ForeignKey("users.id"), nullable=True)
     status_id             = Column(Integer, ForeignKey("statuses.id"), nullable=True)
     sector_id             = Column(Integer, ForeignKey("sectors.id"), nullable=True)
+    creative_id           = Column(Integer, ForeignKey("creatives.id"), nullable=True)
     training_set_id       = Column(Integer, ForeignKey("training_sets.id"), nullable=True)
     created_at            = Column(DateTime, default=datetime.utcnow)
     created_by_user_id    = Column(Integer, ForeignKey("users.id"), nullable=True)
     status                = relationship("Status")
     sector                = relationship("Sector", foreign_keys=[sector_id])
+    creative              = relationship("Creative", foreign_keys=[creative_id])
     training_set          = relationship("TrainingSet", foreign_keys=[training_set_id])
     assigned_to_user      = relationship("User", foreign_keys=[assigned_to_user_id])
     created_by            = relationship("User", foreign_keys=[created_by_user_id])

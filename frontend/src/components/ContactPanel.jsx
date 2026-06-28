@@ -15,7 +15,7 @@ const inputCls =
   "focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 " +
   "text-slate-800 dark:text-slate-100";
 
-export default function ContactPanel({ contact, statuses, sectors = [], trainingSets = [], onUpdate, onJumpToConversation }) {
+export default function ContactPanel({ contact, statuses, sectors = [], creatives = [], trainingSets = [], onUpdate, onJumpToConversation }) {
   const [profile, setProfile] = useState(null);
   const [activity, setActivity] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -205,6 +205,20 @@ export default function ContactPanel({ contact, statuses, sectors = [], training
                 </select>
               ) : (
                 <div className="text-sm text-slate-700 dark:text-slate-200">{profile.sector?.name || <span className="text-slate-400 dark:text-slate-500">—</span>}</div>
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">Kreatif</label>
+              {editing ? (
+                <select value={form.creative_id || ""} onChange={(e) => setForm({ ...form, creative_id: e.target.value ? Number(e.target.value) : null })}
+                  className={inputCls}>
+                  <option value="">{creatives.length === 0 ? "Önce parametreler ekranından tanımla" : "Seç"}</option>
+                  {creatives.filter((c) => c.is_active || c.id === form.creative_id).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-slate-700 dark:text-slate-200">{profile.creative?.name || <span className="text-slate-400 dark:text-slate-500">—</span>}</div>
               )}
             </div>
             <div>

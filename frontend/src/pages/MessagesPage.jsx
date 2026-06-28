@@ -23,6 +23,7 @@ export default function MessagesPage() {
   const [quickReplies, setQuickReplies] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [creatives, setCreatives] = useState([]);
   const [trainingSets, setTrainingSets] = useState([]);
   const [activeReminders, setActiveReminders] = useState([]);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -125,6 +126,7 @@ export default function MessagesPage() {
     api.get("/quick-replies").then((r) => setQuickReplies(r.data));
     api.get("/statuses").then((r) => setStatuses(r.data));
     api.get("/sectors").then((r) => setSectors(r.data));
+    api.get("/creatives").then((r) => setCreatives(r.data));
     api.get("/training-sets").then((r) => setTrainingSets(r.data));
     checkReminders();
     // Socket 'new_message' anlık güncelliyor; bu interval yalnızca güvenlik ağı (kaçan event / reconnect).
@@ -563,7 +565,7 @@ export default function MessagesPage() {
           )}
         </div>
 
-        <ContactPanel contact={selected?.contact} statuses={statuses} sectors={sectors} trainingSets={trainingSets} onUpdate={fetchConversations} onJumpToConversation={jumpToConversation} />
+        <ContactPanel contact={selected?.contact} statuses={statuses} sectors={sectors} creatives={creatives} trainingSets={trainingSets} onUpdate={fetchConversations} onJumpToConversation={jumpToConversation} />
       </div>
     </div>
   );

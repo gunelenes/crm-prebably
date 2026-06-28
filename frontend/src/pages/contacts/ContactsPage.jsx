@@ -33,6 +33,7 @@ export default function ContactsPage() {
 
   const [statuses, setStatuses] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [creatives, setCreatives] = useState([]);
   const [trainingSets, setTrainingSets] = useState([]);
 
   const debounceRef = useRef(null);
@@ -40,6 +41,7 @@ export default function ContactsPage() {
   useEffect(() => {
     api.get("/statuses").then((r) => setStatuses(r.data));
     api.get("/sectors").then((r) => setSectors(r.data));
+    api.get("/creatives").then((r) => setCreatives(r.data));
     api.get("/training-sets").then((r) => setTrainingSets(r.data));
   }, []);
 
@@ -118,6 +120,7 @@ export default function ContactsPage() {
         contactId={selectedId}
         statuses={statuses}
         sectors={sectors}
+        creatives={creatives}
         trainingSets={trainingSets}
         onChanged={refresh}
         onSelectContact={selectContact}

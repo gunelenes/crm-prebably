@@ -40,6 +40,10 @@ ALTER TABLE quick_replies  ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER R
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS sector_id       INTEGER REFERENCES sectors(id);
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS training_set_id INTEGER REFERENCES training_sets(id);
 
+-- 'creatives' tablosu (kreatif parametreleri) backend boot'unda create_all ile
+-- otomatik oluşur; burada contacts'a FK kolonunu ekliyoruz (2026-06 eklendi).
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS creative_id     INTEGER REFERENCES creatives(id);
+
 -- ============================================================================
 -- 4) Eski serbest metin sector / source_video verilerini taşı (opsiyonel)
 -- ============================================================================
