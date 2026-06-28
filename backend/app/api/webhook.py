@@ -122,6 +122,30 @@ async def _ensure_contact_conv(db, sender_id, platform, preview_text, display_na
     return contact, conversation, is_new
 
 
+async def _resolve_campaign_name(ad_id):
+    """ad_id'yi Marketing API ile kampanya adına çözer (ads_read META_ACCESS_TOKEN).
+    Yeni gelen referral'ın kampanya adını ANINDA doldurmak için kullanılır; token yok /
+    hata / silinmiş reklam → None (çağıran ad_title'a düşer, periyodik sync yedekler)."""
+    if not ad_id:
+        return None
+    import httpx
+    from app.config import META_ACCESS_TOKEN, META_GRAPH_VERSION
+    if not META_ACCESS_TOKEN:
+        return None
+    version = META_GRAPH_VERSION or "v21.0"
+    url = f"https://graph.facebook.com/{version}/{ad_id}"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, params={"fields": "campaign{name}",
+                                                 "access_token": META_ACCESS_TOKEN})
+            data = resp.json()
+        if data.get("error"):
+            return None
+        return ((data.get("campaign") or {}).get("name") or "").strip() or None
+    except Exception:
+        return None
+
+
 async def _log_ad_referral(db, sender_id, referral, is_first_touch=False):
     """Instagram CTD (Click-to-Direct) reklamından gelen DM'in atıfını ActivityLog'a yazar.
 
@@ -133,6 +157,9 @@ async def _log_ad_referral(db, sender_id, referral, is_first_touch=False):
     is_first_touch=True ise kişi bu reklamdan ÖNCE hiç yoktu → reklam yeni müşteri
     kazandırdı (kişi panelinde özel belirteç). Daha önce mesaj atmış kişi reklamdan
     geri döndüyse False (sadece geçmişe satır eklenir).
+
+    Kampanya adı geldiği anda Marketing API'den çözülür; başarısızsa ad_title kullanılır
+    ve periyodik `resolve_ad_campaigns` (advertising.py) sonradan campaign_name'i doldurur.
     """
     from app.models import ActivityLog
     contact = db.query(Contact).filter(Contact.external_id == sender_id).first()
@@ -141,8 +168,10 @@ async def _log_ad_referral(db, sender_id, referral, is_first_touch=False):
     ad_ctx = referral.get("ads_context_data") or {}
     ad_title = ad_ctx.get("ad_title")
     ad_id = referral.get("ad_id")
-    title = (f"🎯 Reklamla gelen müşteri: {ad_title or 'Reklam'}" if is_first_touch
-             else f"📢 Reklamdan geldi: {ad_title or 'Reklam'}")
+    campaign_name = await _resolve_campaign_name(ad_id)  # anında çöz (yoksa None)
+    label = campaign_name or ad_title or "Reklam"
+    title = (f"🎯 Reklamla gelen müşteri: {label}" if is_first_touch
+             else f"📢 Reklamdan geldi: {label}")
     db.add(ActivityLog(
         contact_id=contact.id,
         type="ad_referral",
@@ -150,11 +179,12 @@ async def _log_ad_referral(db, sender_id, referral, is_first_touch=False):
         description=f"Reklam ID: {ad_id}" if ad_id else "Reklam kaynağından gelindi",
         ad_id=ad_id,
         ad_title=ad_title,
+        campaign_name=campaign_name,
         is_first_touch=is_first_touch,
         created_at=datetime.utcnow(),
     ))
     db.commit()
-    print(f"Reklam atıfı kaydedildi: {sender_id} → {ad_title} ({ad_id}) ilk_temas={is_first_touch}")
+    print(f"Reklam atıfı kaydedildi: {sender_id} → kampanya={campaign_name} reklam={ad_title} ({ad_id}) ilk_temas={is_first_touch}")
 
 
 async def _emit_new_message(platform, sender_id, conversation_id, text, is_new):
