@@ -417,40 +417,75 @@ def run_ad_sync(db, client, token, version, from_d, to_d) -> dict:
     return {"status": "ok", "synced": upserted, "accounts": len(accounts), "errors": errors}
 
 
-def resolve_ad_campaigns(db, client, token, version) -> int:
+def resolve_ad_campaigns(db, client, token, version) -> dict:
     """ad_referral ActivityLog kayıtlarındaki ad_id'leri Marketing API ile kampanya
-    adına çözer (campaign_name doldurur). Webhook yalnızca ad_id+ad_title yazar;
-    kampanya adı buraya (ads_read token'lı çağrıyla) sonradan eklenir.
+    adına çözer ve aktivite başlıklarını (`title`) kampanya adına göre yeniden yazar.
+    Webhook yalnızca ad_id+ad_title yazar; kampanya adı buraya (ads_read token'lı
+    çağrıyla) sonradan eklenir.
 
-    - Yalnızca campaign_name IS NULL olan distinct ad_id'ler işlenir.
-    - Çözülemeyen (silinmiş reklam / hata) ad_id NULL kalır, sonraki tick'te tekrar denenir.
-    - Token yoksa no-op. Çözülen ActivityLog satır sayısını döner.
+    İki adım:
+      1) campaign_name IS NULL olan distinct ad_id'ler Marketing API ile çözülür.
+      2) campaign_name dolu TÜM ad_referral satırlarının `title`'ı kampanya adına göre
+         yeniden yazılır (Aktivite ekranı dondurulmuş title gösterir; önceki sync'te
+         campaign_name dolduğu halde title eski ad_title'da kalmış satırlar da onarılır).
+         Başlık formatı webhook.py'deki `_log_ad_referral` ile birebir aynı olmalı.
+
+    Çözülemeyen (silinmiş reklam / yetki hatası) ad_id NULL kalır, sonraki tick'te
+    tekrar denenir. Token yoksa no-op. Diagnostik için sayım/hata döner.
     """
     if not token:
-        return 0
+        return {"resolved_ads": 0, "titles_updated": 0, "errors": ["token yok"]}
+
     ad_ids = [r[0] for r in (db.query(ActivityLog.ad_id)
                              .filter(ActivityLog.type == "ad_referral",
                                      ActivityLog.ad_id.isnot(None),
                                      ActivityLog.campaign_name.is_(None))
                              .distinct().all())]
-    updated = 0
+    resolved, errors = 0, []
     for ad_id in ad_ids:
         try:
             url = f"https://graph.facebook.com/{version}/{ad_id}"
             data = _meta_get(client, url, {"fields": "campaign{name}", "access_token": token})
             if data.get("error"):
+                msg = (data["error"] or {}).get("message", str(data["error"]))
+                if len(errors) < 5:
+                    errors.append(f"{ad_id}: {msg}")
                 continue
             cname = ((data.get("campaign") or {}).get("name") or "").strip()
             if not cname:
+                if len(errors) < 5:
+                    errors.append(f"{ad_id}: kampanya adı boş")
                 continue
-            updated += (db.query(ActivityLog)
-                        .filter(ActivityLog.type == "ad_referral", ActivityLog.ad_id == ad_id)
-                        .update({ActivityLog.campaign_name: cname}, synchronize_session=False))
-        except Exception:
+            (db.query(ActivityLog)
+             .filter(ActivityLog.type == "ad_referral", ActivityLog.ad_id == ad_id)
+             .update({ActivityLog.campaign_name: cname}, synchronize_session=False))
+            resolved += 1
+        except Exception as e:
+            if len(errors) < 5:
+                errors.append(f"{ad_id}: {e}")
             continue  # bir ad_id'nin hatası diğerlerini düşürmesin
-    if updated:
+    if resolved:
         db.commit()
-    return updated
+
+    # 2) Başlıkları campaign_name'e göre onar (webhook.py formatıyla aynı).
+    ft_title = func.concat("🎯 Reklamla gelen müşteri: ", ActivityLog.campaign_name)
+    rt_title = func.concat("📢 Reklamdan geldi: ", ActivityLog.campaign_name)
+    n1 = (db.query(ActivityLog)
+          .filter(ActivityLog.type == "ad_referral",
+                  ActivityLog.campaign_name.isnot(None),
+                  ActivityLog.is_first_touch.is_(True),
+                  ActivityLog.title != ft_title)
+          .update({ActivityLog.title: ft_title}, synchronize_session=False)) or 0
+    n2 = (db.query(ActivityLog)
+          .filter(ActivityLog.type == "ad_referral",
+                  ActivityLog.campaign_name.isnot(None),
+                  or_(ActivityLog.is_first_touch.is_(False), ActivityLog.is_first_touch.is_(None)),
+                  ActivityLog.title != rt_title)
+          .update({ActivityLog.title: rt_title}, synchronize_session=False)) or 0
+    titles_updated = n1 + n2
+    if titles_updated:
+        db.commit()
+    return {"resolved_ads": resolved, "titles_updated": titles_updated, "errors": errors}
 
 
 def _check_token(client, token, version) -> dict:
@@ -555,7 +590,7 @@ def sync_ads(
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     client = request.app.state.sync_http
     result = run_ad_sync(db, client, token, version, from_d, to_d)
-    resolve_ad_campaigns(db, client, token, version)  # ad_referral kayıtlarına kampanya adı çöz
+    result["campaign_resolution"] = resolve_ad_campaigns(db, client, token, version)  # kampanya adı çöz + başlık onar
     tok = _check_token(client, token, version)
     _store_sync_state(db, result, tok)
     return result

@@ -64,10 +64,14 @@ export default function AdvertisingPage() {
         setSyncMsg({ type: "error", text: d.error || "Senkronizasyon başarısız" });
       } else {
         const errCount = (d.errors || []).length;
+        const cr = d.campaign_resolution || {};
+        const crText = (cr.resolved_ads || cr.titles_updated)
+          ? ` · ${cr.resolved_ads || 0} reklam kampanyaya çözüldü, ${cr.titles_updated || 0} aktivite başlığı güncellendi`
+          : (cr.errors?.length ? ` · kampanya çözülemedi (${cr.errors[0]})` : "");
         setSyncMsg({
           type: "ok",
           text: `${d.synced ?? 0} kayıt güncellendi (${d.accounts ?? 0} hesap)` +
-            (errCount ? ` · ${errCount} hesapta hata` : ""),
+            (errCount ? ` · ${errCount} hesapta hata` : "") + crText,
         });
         await fetchAll();
         fetchStatus();
