@@ -15,6 +15,7 @@ export default function ContactsSidebar({
     (filters.statusId ? 1 : 0) +
     (filters.sectorId ? 1 : 0) +
     (filters.adId ? 1 : 0) +
+    (filters.acquiredViaAd ? 1 : 0) +
     (filters.trainingSetId ? 1 : 0) +
     (filters.assignedTo ? 1 : 0) +
     (filters.purchased !== null ? 1 : 0) +

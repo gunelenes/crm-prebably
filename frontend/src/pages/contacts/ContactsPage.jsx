@@ -11,6 +11,7 @@ const defaultFilters = {
   statusId: null,
   sectorId: null,
   adId: null,                 // reklam atıfı (ad_id) filtresi
+  acquiredViaAd: null,        // sadece reklamla gelen (ilk-temas) müşteriler
   trainingSetId: null,
   assignedTo: "",
   purchased: null,            // null | true | false
@@ -54,6 +55,7 @@ export default function ContactsPage() {
     if (f.statusId) params.status_id = f.statusId;
     if (f.sectorId) params.sector_id = f.sectorId;
     if (f.adId) params.ad_id = f.adId;
+    if (f.acquiredViaAd) params.acquired_via_ad = true;
     if (f.trainingSetId) params.training_set_id = f.trainingSetId;
     if (f.assignedTo) params.assigned_to = f.assignedTo;
     if (f.purchased !== null) params.purchased = f.purchased;

@@ -101,6 +101,9 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
     });
   };
 
+  const firstTouchAd = profile?.ad_referrals?.find((r) => r.is_first_touch) || null;
+  const latestAd = profile?.ad_referrals?.[0] || null;
+
   return (
     <section className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -128,10 +131,15 @@ export default function ContactDetail({ contactStub, contactId, statuses, sector
                     🎨 {display.creative.name}
                   </span>
                 )}
-                {profile?.ad_referrals?.[0] && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30"
-                    title={`Reklamdan geldi${profile.ad_referrals.length > 1 ? ` (${profile.ad_referrals.length} kez)` : ""}`}>
-                    📢 {profile.ad_referrals[0].ad_title || "Reklam"}
+                {firstTouchAd ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-medium"
+                    title={`Reklamla gelen müşteri — ${firstTouchAd.campaign_name || firstTouchAd.ad_title || "Reklam"}`}>
+                    🎯 Reklamla gelen müşteri
+                  </span>
+                ) : latestAd && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300"
+                    title={`Reklamdan döndü${profile.ad_referrals.length > 1 ? ` (${profile.ad_referrals.length} kez)` : ""}`}>
+                    📢 {latestAd.campaign_name || latestAd.ad_title || "Reklam"}
                   </span>
                 )}
                 {(display.training_set || display.training_set_id) && profile?.training_set && (

@@ -29,6 +29,7 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
     statusId: null,
     sectorId: null,
     adId: null,
+    acquiredViaAd: null,
     trainingSetId: null,
     assignedTo: "",
     purchased: null,
@@ -83,6 +84,14 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
         </div>
       </div>
 
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">🎯 Reklamla Gelen Müşteriler</div>
+        <div className="flex flex-wrap gap-1">
+          <Pill active={!filters.acquiredViaAd} onClick={() => update({ acquiredViaAd: null })}>Tümü</Pill>
+          <Pill active={filters.acquiredViaAd === true} onClick={() => update({ acquiredViaAd: true })}>🎯 Sadece reklamla gelenler</Pill>
+        </div>
+      </div>
+
       {adOptions.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">📢 Reklam (geldiği kampanya)</div>
@@ -90,7 +99,7 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
             className={`${inputCls} w-full`}>
             <option value="">Tümü</option>
             {adOptions.map((a) => (
-              <option key={a.ad_id} value={a.ad_id}>{a.ad_title || a.ad_id}</option>
+              <option key={a.ad_id} value={a.ad_id}>{a.campaign_name || a.ad_title || a.ad_id}</option>
             ))}
           </select>
         </div>

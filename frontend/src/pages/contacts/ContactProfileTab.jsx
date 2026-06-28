@@ -175,7 +175,14 @@ export default function ContactProfileTab({ profile, sectors, creatives = [], tr
               <div className="space-y-1.5">
                 {profile.ad_referrals.map((r) => (
                   <div key={r.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-700 dark:text-slate-200 truncate">{r.ad_title || "Reklam"}</span>
+                    <span className="truncate flex items-center gap-1.5 min-w-0">
+                      <span className={`truncate ${r.is_first_touch ? "text-emerald-700 dark:text-emerald-300 font-medium" : "text-slate-700 dark:text-slate-200"}`}>
+                        {r.is_first_touch ? "🎯 " : ""}{r.campaign_name || r.ad_title || "Reklam"}
+                      </span>
+                      {r.is_first_touch && (
+                        <span className="flex-shrink-0 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">İlk temas</span>
+                      )}
+                    </span>
                     <span className="text-[11px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(r.created_at)}</span>
                   </div>
                 ))}

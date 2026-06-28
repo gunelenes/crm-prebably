@@ -134,6 +134,8 @@ class ActivityLog(Base):
     new_status_id       = Column(Integer, nullable=True)
     ad_id               = Column(String(64), nullable=True, index=True)   # type='ad_referral' için
     ad_title            = Column(String(255), nullable=True)              # type='ad_referral' için
+    campaign_name       = Column(String(255), nullable=True)             # ad_referral: ad_id'den Marketing API ile çözülen kampanya adı
+    is_first_touch      = Column(Boolean, nullable=True)                  # ad_referral: kişinin İLK mesajı bu reklamdansa True
     advisor             = Column(String(100), nullable=True)
     advisor_user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)

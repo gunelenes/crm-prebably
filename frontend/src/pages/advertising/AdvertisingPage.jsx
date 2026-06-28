@@ -191,7 +191,7 @@ export default function AdvertisingPage() {
 
         <div>
           <h3 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-2">
-            Harcama Detayı (Ad Set)
+            Harcama Detayı (Günlük · Kampanya / Ad Set)
           </h3>
           <AdSpendTable rows={spendRows} loading={loading} />
         </div>

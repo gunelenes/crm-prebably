@@ -51,6 +51,10 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS creative_id     INTEGER REFERENCES
 -- ============================================================================
 ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS ad_id    VARCHAR(64);
 ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS ad_title VARCHAR(255);
+-- is_first_touch: ad_referral kaydı kişinin İLK mesajıysa (reklam yeni müşteri kazandırdıysa) TRUE
+ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS is_first_touch BOOLEAN DEFAULT FALSE;
+-- campaign_name: ad_id'den Marketing API ile çözülen kampanya adı (NULL ise henüz çözülmedi → ad_title fallback)
+ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS campaign_name VARCHAR(255);
 CREATE INDEX IF NOT EXISTS ix_activity_logs_ad_id ON activity_logs(ad_id);
 
 -- ============================================================================

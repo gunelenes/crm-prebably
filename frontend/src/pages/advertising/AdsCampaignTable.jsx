@@ -4,6 +4,9 @@ import { fmtCurrency, fmtNum, CHANNEL_META } from "./format";
 const COLS = [
   { key: "campaign_name", label: "Kampanya", align: "left", sortable: false },
   { key: "spend", label: "Harcama", align: "right", sortable: true },
+  { key: "contacts", label: "Gelen Kişi", align: "right", sortable: true, hint: "Bu kampanyadan gelen toplam kişi (reklam atfı)" },
+  { key: "new_customers", label: "Yeni Müşteri", align: "right", sortable: true, hint: "İlk teması bu kampanya olan (reklamla kazanılan) kişi" },
+  { key: "cost_per_new_customer", label: "Müşteri Başına Maliyet", align: "right", sortable: true, hint: "Harcama / yeni müşteri" },
   { key: "results", label: "Sonuç", align: "right", sortable: true, hint: "Kampanya amacına göre konuşma (DM) veya tıklama" },
   { key: "cost_per_result", label: "Sonuç Başına Maliyet", align: "right", sortable: true },
   { key: "clicks", label: "Tıklama", align: "right", sortable: true },
@@ -60,6 +63,11 @@ export default function AdsCampaignTable({ rows, selected, onSelect }) {
                   <div className="text-[10px] text-slate-400 dark:text-slate-500">{ch.icon} {ch.label}</div>
                 </td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-800 dark:text-slate-100">{fmtCurrency(r.spend, r.currency)}</td>
+                <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">{fmtNum(r.contacts)}</td>
+                <td className="px-3 py-2 text-right font-mono whitespace-nowrap font-medium text-emerald-700 dark:text-emerald-300">{fmtNum(r.new_customers)}</td>
+                <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">
+                  {r.cost_per_new_customer != null ? fmtCurrency(r.cost_per_new_customer, r.currency) : "—"}
+                </td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">{fmtNum(r.results)}</td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-700 dark:text-slate-200">
                   {r.cost_per_result != null ? fmtCurrency(r.cost_per_result, r.currency) : "—"}

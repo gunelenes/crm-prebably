@@ -138,6 +138,7 @@ def search_contacts(
     sector_id: Optional[int] = None,
     creative_id: Optional[int] = None,
     ad_id: Optional[str] = None,
+    acquired_via_ad: Optional[bool] = None,
     training_set_id: Optional[int] = None,
     assigned_to: Optional[str] = None,
     purchased: Optional[bool] = None,
@@ -225,6 +226,14 @@ def search_contacts(
             db.query(ActivityLog.contact_id).filter(
                 ActivityLog.type == "ad_referral",
                 ActivityLog.ad_id == ad_id,
+            )
+        ))
+    if acquired_via_ad:
+        # Reklamla KAZANILAN müşteriler: ilk mesajı reklamdan olan kişiler (is_first_touch).
+        base_query = base_query.filter(Contact.id.in_(
+            db.query(ActivityLog.contact_id).filter(
+                ActivityLog.type == "ad_referral",
+                ActivityLog.is_first_touch.is_(True),
             )
         ))
     if training_set_id:
@@ -525,12 +534,13 @@ def ad_referral_options(_: User = Depends(get_current_user), db: Session = Depen
     """Reklam filtresi için: kişilerin geldiği distinct reklamlar (ad_id + ad_title),
     en son kullanılan önce. (Bu rota /contacts/{contact_id}'den ÖNCE tanımlı olmalı.)"""
     rows = (db.query(ActivityLog.ad_id,
-                     func.max(ActivityLog.ad_title).label("ad_title"))
+                     func.max(ActivityLog.ad_title).label("ad_title"),
+                     func.max(ActivityLog.campaign_name).label("campaign_name"))
             .filter(ActivityLog.type == "ad_referral", ActivityLog.ad_id.isnot(None))
             .group_by(ActivityLog.ad_id)
             .order_by(func.max(ActivityLog.created_at).desc())
             .all())
-    return [{"ad_id": r.ad_id, "ad_title": r.ad_title} for r in rows]
+    return [{"ad_id": r.ad_id, "ad_title": r.ad_title, "campaign_name": r.campaign_name} for r in rows]
 
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -570,6 +580,8 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "id": l.id,
         "ad_id": l.ad_id,
         "ad_title": l.ad_title,
+        "campaign_name": l.campaign_name,
+        "is_first_touch": bool(l.is_first_touch),
         "created_at": iso_utc(l.created_at),
     } for l in ad_logs]
 

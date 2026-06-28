@@ -14,11 +14,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Body, File, UploadFile, HTTPException, Request, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, case
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, User
+from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, User, ActivityLog
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
@@ -417,6 +417,42 @@ def run_ad_sync(db, client, token, version, from_d, to_d) -> dict:
     return {"status": "ok", "synced": upserted, "accounts": len(accounts), "errors": errors}
 
 
+def resolve_ad_campaigns(db, client, token, version) -> int:
+    """ad_referral ActivityLog kayıtlarındaki ad_id'leri Marketing API ile kampanya
+    adına çözer (campaign_name doldurur). Webhook yalnızca ad_id+ad_title yazar;
+    kampanya adı buraya (ads_read token'lı çağrıyla) sonradan eklenir.
+
+    - Yalnızca campaign_name IS NULL olan distinct ad_id'ler işlenir.
+    - Çözülemeyen (silinmiş reklam / hata) ad_id NULL kalır, sonraki tick'te tekrar denenir.
+    - Token yoksa no-op. Çözülen ActivityLog satır sayısını döner.
+    """
+    if not token:
+        return 0
+    ad_ids = [r[0] for r in (db.query(ActivityLog.ad_id)
+                             .filter(ActivityLog.type == "ad_referral",
+                                     ActivityLog.ad_id.isnot(None),
+                                     ActivityLog.campaign_name.is_(None))
+                             .distinct().all())]
+    updated = 0
+    for ad_id in ad_ids:
+        try:
+            url = f"https://graph.facebook.com/{version}/{ad_id}"
+            data = _meta_get(client, url, {"fields": "campaign{name}", "access_token": token})
+            if data.get("error"):
+                continue
+            cname = ((data.get("campaign") or {}).get("name") or "").strip()
+            if not cname:
+                continue
+            updated += (db.query(ActivityLog)
+                        .filter(ActivityLog.type == "ad_referral", ActivityLog.ad_id == ad_id)
+                        .update({ActivityLog.campaign_name: cname}, synchronize_session=False))
+        except Exception:
+            continue  # bir ad_id'nin hatası diğerlerini düşürmesin
+    if updated:
+        db.commit()
+    return updated
+
+
 def _check_token(client, token, version) -> dict:
     """Meta token geçerliliği + son kullanma tarihi (debug_token). Hata → bilinmiyor."""
     app_id = config.INSTAGRAM_APP_ID
@@ -490,6 +526,7 @@ def auto_sync_tick():
             to_d = today_tr()  # İstanbul günü (sunucu-yerel değil)
             from_d = to_d - timedelta(days=AUTO_SYNC_DAYS)
             result = run_ad_sync(db, client, token, version, from_d, to_d)
+            resolve_ad_campaigns(db, client, token, version)  # ad_referral → kampanya adı backfill
         tok = _check_token(client, token, version) if (need_token or due) else None
         if result is not None or tok is not None:
             _store_sync_state(db, result, tok)
@@ -518,6 +555,7 @@ def sync_ads(
     from_d = _parse_date(from_) or (to_d - timedelta(days=30))
     client = request.app.state.sync_http
     result = run_ad_sync(db, client, token, version, from_d, to_d)
+    resolve_ad_campaigns(db, client, token, version)  # ad_referral kayıtlarına kampanya adı çöz
     tok = _check_token(client, token, version)
     _store_sync_state(db, result, tok)
     return result
@@ -843,6 +881,21 @@ def analytics_summary(
             "cost_per_conversation": (spend / results) if results else None,
         })
 
+    # --- kampanya bazlı reklam atfı (ActivityLog ad_referral) sayıları, aralıkta ---
+    # campaign_name ile AdSpend.campaign_name eşleştirilir (ikisi de Marketing API kaynaklı).
+    from_dt = datetime.combine(from_d, datetime.min.time())
+    to_dt = datetime.combine(to_d, datetime.max.time())
+    ar_rows = (db.query(
+        ActivityLog.campaign_name,
+        func.count(func.distinct(ActivityLog.contact_id)),
+        func.count(func.distinct(case((ActivityLog.is_first_touch.is_(True), ActivityLog.contact_id)))),
+    ).filter(ActivityLog.type == "ad_referral",
+             ActivityLog.campaign_name.isnot(None),
+             ActivityLog.created_at >= from_dt,
+             ActivityLog.created_at <= to_dt)
+     .group_by(ActivityLog.campaign_name).all())
+    camp_contacts = {cn: (int(c or 0), int(nc or 0)) for cn, c, nc in ar_rows}
+
     # --- kampanya bazlı (kampanya filtresi UYGULANMAZ; tüm kampanyalar listelenir) ---
     camp_rows = (db.query(
         AdSpend.campaign_name,
@@ -856,6 +909,7 @@ def analytics_summary(
     for cname, ch, currency, spend, clicks, results in camp_rows:
         spend = float(spend or 0)
         results = int(results or 0)
+        contacts, new_customers = camp_contacts.get(cname, (0, 0))
         by_campaign.append({
             "campaign_name": cname or "(isimsiz)",
             "channel": ch or "other",
@@ -864,6 +918,9 @@ def analytics_summary(
             "clicks": int(clicks or 0),
             "results": results,
             "cost_per_result": (spend / results) if results else None,
+            "contacts": contacts,
+            "new_customers": new_customers,
+            "cost_per_new_customer": (spend / new_customers) if new_customers else None,
         })
     by_campaign.sort(key=lambda x: -x["spend"])
 
@@ -879,10 +936,19 @@ def analytics_summary(
                               .filter(*spend_range, AdSpend.result_type == "messaging_conversation_started")
                               .scalar() or 0)
 
+    # --- reklamla gelen kişi/müşteri (ActivityLog ad_referral, aralıkta; kampanya filtresi uygulanır) ---
+    ar_filters = [ActivityLog.type == "ad_referral",
+                  ActivityLog.created_at >= from_dt, ActivityLog.created_at <= to_dt]
+    if campaign:
+        ar_filters.append(ActivityLog.campaign_name == campaign)
+    ad_contacts = int(db.query(func.count(func.distinct(ActivityLog.contact_id)))
+                      .filter(*ar_filters).scalar() or 0)
+    ad_new_customers = int(db.query(func.count(func.distinct(ActivityLog.contact_id)))
+                           .filter(*ar_filters, ActivityLog.is_first_touch.is_(True)).scalar() or 0)
+    cost_per_new_customer = (total_spend / ad_new_customers) if ad_new_customers else None
+
     # --- kayıtlar (registered_at yoksa uploaded_at) ---
     reg_dt_col = func.coalesce(Registration.registered_at, Registration.uploaded_at)
-    from_dt = datetime.combine(from_d, datetime.min.time())
-    to_dt = datetime.combine(to_d, datetime.max.time())
     reg_base = db.query(Registration).filter(reg_dt_col >= from_dt, reg_dt_col <= to_dt)
     total_reg = reg_base.with_entities(func.count(Registration.id)).scalar() or 0
     matched_reg = (reg_base.with_entities(func.count(Registration.id))
@@ -923,6 +989,9 @@ def analytics_summary(
             "spend": total_spend,
             "clicks": total_clicks,
             "conversations": total_conversations,
+            "ad_contacts": ad_contacts,
+            "ad_new_customers": ad_new_customers,
+            "cost_per_new_customer": cost_per_new_customer,
             "registrations": int(total_reg),
             "matched_registrations": int(matched_reg),
             "cpa": cpa,

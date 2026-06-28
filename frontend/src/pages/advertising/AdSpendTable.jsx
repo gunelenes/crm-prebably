@@ -33,9 +33,9 @@ export default function AdSpendTable({ rows, loading }) {
               <tr key={r.id} className="border-b border-slate-100/60 dark:border-white/5 last:border-0 hover:bg-slate-50/60 dark:hover:bg-white/5">
                 <td className="px-3 py-2 whitespace-nowrap font-mono text-xs text-slate-500 dark:text-slate-400">{r.date}</td>
                 <td className="px-3 py-2 max-w-[160px] truncate text-slate-700 dark:text-slate-200">{r.account_name}</td>
-                <td className="px-3 py-2 max-w-[220px] truncate text-slate-600 dark:text-slate-300">
-                  <span className="text-slate-400 dark:text-slate-500">{r.campaign_name || "—"}</span>
-                  {r.adset_name ? <span className="text-slate-700 dark:text-slate-200"> · {r.adset_name}</span> : null}
+                <td className="px-3 py-2 max-w-[240px]">
+                  <div className="truncate text-slate-700 dark:text-slate-200 font-medium">{r.campaign_name || "—"}</div>
+                  {r.adset_name ? <div className="truncate text-[11px] text-slate-400 dark:text-slate-500">{r.adset_name}</div> : null}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">{ch.icon} {ch.label}</td>
                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap text-slate-800 dark:text-slate-100">{fmtCurrency(r.spend, r.currency)}</td>

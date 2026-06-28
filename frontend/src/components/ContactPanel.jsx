@@ -96,6 +96,12 @@ export default function ContactPanel({ contact, statuses, sectors = [], creative
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">{profile?.full_name || contact.name}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">{platformIcon(contact.platform)} {contact.name}</div>
+            {profile?.ad_referrals?.some((r) => r.is_first_touch) && (
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                title={(() => { const r = profile.ad_referrals.find((r) => r.is_first_touch); return r?.campaign_name || r?.ad_title || "Reklam"; })()}>
+                🎯 Reklamla gelen müşteri
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -290,7 +296,9 @@ export default function ContactPanel({ contact, statuses, sectors = [], creative
                 <div className="space-y-1">
                   {profile.ad_referrals.map((r) => (
                     <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-slate-700 dark:text-slate-200 truncate">{r.ad_title || "Reklam"}</span>
+                      <span className={`truncate ${r.is_first_touch ? "text-emerald-700 dark:text-emerald-300 font-medium" : "text-slate-700 dark:text-slate-200"}`}>
+                        {r.is_first_touch ? "🎯 " : ""}{r.campaign_name || r.ad_title || "Reklam"}
+                      </span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(r.created_at)}</span>
                     </div>
                   ))}
