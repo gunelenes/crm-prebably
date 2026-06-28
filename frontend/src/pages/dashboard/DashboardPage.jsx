@@ -5,6 +5,7 @@ import DashboardKpiCards from "./DashboardKpiCards";
 import DashboardFinancialCard from "./DashboardFinancialCard";
 import DashboardStatusChart from "./DashboardStatusChart";
 import DashboardActivityFeed from "./DashboardActivityFeed";
+import DashboardRemindersWidget from "./DashboardRemindersWidget";
 
 const todayLabel = () =>
   new Date().toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -52,6 +53,8 @@ export default function DashboardPage() {
         )}
 
         {summary?.this_month && <DashboardFinancialCard data={summary.this_month} />}
+
+        <DashboardRemindersWidget onChange={load} />
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           <div className="lg:col-span-2">
