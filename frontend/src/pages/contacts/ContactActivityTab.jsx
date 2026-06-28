@@ -5,6 +5,7 @@ const icon = (type) => {
   if (type === "status_change") return "🏷️";
   if (type === "reminder") return "🔔";
   if (type === "note") return "📝";
+  if (type === "ad_referral") return "📢";
   return "📌";
 };
 

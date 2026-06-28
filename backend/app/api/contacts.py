@@ -137,6 +137,7 @@ def search_contacts(
     status_id: Optional[int] = None,
     sector_id: Optional[int] = None,
     creative_id: Optional[int] = None,
+    ad_id: Optional[str] = None,
     training_set_id: Optional[int] = None,
     assigned_to: Optional[str] = None,
     purchased: Optional[bool] = None,
@@ -218,6 +219,14 @@ def search_contacts(
         base_query = base_query.filter(Contact.sector_id == sector_id)
     if creative_id:
         base_query = base_query.filter(Contact.creative_id == creative_id)
+    if ad_id:
+        # Reklamdan gelen kişiler: bu ad_id ile bir ad_referral aktivitesi olanlar.
+        base_query = base_query.filter(Contact.id.in_(
+            db.query(ActivityLog.contact_id).filter(
+                ActivityLog.type == "ad_referral",
+                ActivityLog.ad_id == ad_id,
+            )
+        ))
     if training_set_id:
         base_query = base_query.filter(Contact.training_set_id == training_set_id)
     if assigned_to:
@@ -511,6 +520,18 @@ def delete_reminder(contact_id: int, reminder_id: int, _: User = Depends(get_cur
     db.commit()
     return {"status": "ok"}
 
+@router.get("/contacts/ad-referral-options")
+def ad_referral_options(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Reklam filtresi için: kişilerin geldiği distinct reklamlar (ad_id + ad_title),
+    en son kullanılan önce. (Bu rota /contacts/{contact_id}'den ÖNCE tanımlı olmalı.)"""
+    rows = (db.query(ActivityLog.ad_id,
+                     func.max(ActivityLog.ad_title).label("ad_title"))
+            .filter(ActivityLog.type == "ad_referral", ActivityLog.ad_id.isnot(None))
+            .group_by(ActivityLog.ad_id)
+            .order_by(func.max(ActivityLog.created_at).desc())
+            .all())
+    return [{"ad_id": r.ad_id, "ad_title": r.ad_title} for r in rows]
+
 @router.get("/contacts/{contact_id}")
 def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Birleşik profil: hangi kanal açılırsa açılsın KANONİK kaydın profili gösterilir.
@@ -539,6 +560,19 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
                 phone = phone or other.phone
                 email = email or other.email
 
+    # Reklam atıfı geçmişi: kişinin (birleşik grup) reklamdan geldiği tüm mesajlar.
+    ad_logs = (db.query(ActivityLog)
+               .filter(ActivityLog.contact_id.in_(_group_ids(db, requested_id)),
+                       ActivityLog.type == "ad_referral")
+               .order_by(ActivityLog.created_at.desc())
+               .all())
+    ad_referrals = [{
+        "id": l.id,
+        "ad_id": l.ad_id,
+        "ad_title": l.ad_title,
+        "created_at": iso_utc(l.created_at),
+    } for l in ad_logs]
+
     return {
         "id": contact.id,
         "name": contact.name,
@@ -565,6 +599,7 @@ def get_contact(contact_id: int, _: User = Depends(get_current_user), db: Sessio
         "assigned_to_user_id": contact.assigned_to_user_id,
         "assigned_to_user": serialize_user(contact.assigned_to_user),
         "created_at": iso_utc(contact.created_at),
+        "ad_referrals": ad_referrals,
         "linked_contact": _linked_contact_summary(db, requested_id),
         "channels": _channels(db, requested_id),
         "primary_contact_id": canonical if linked else None,

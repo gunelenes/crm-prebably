@@ -10,6 +10,7 @@ const defaultFilters = {
   q: "",
   statusId: null,
   sectorId: null,
+  adId: null,                 // reklam atıfı (ad_id) filtresi
   trainingSetId: null,
   assignedTo: "",
   purchased: null,            // null | true | false
@@ -35,6 +36,7 @@ export default function ContactsPage() {
   const [sectors, setSectors] = useState([]);
   const [creatives, setCreatives] = useState([]);
   const [trainingSets, setTrainingSets] = useState([]);
+  const [adOptions, setAdOptions] = useState([]);
 
   const debounceRef = useRef(null);
 
@@ -43,6 +45,7 @@ export default function ContactsPage() {
     api.get("/sectors").then((r) => setSectors(r.data));
     api.get("/creatives").then((r) => setCreatives(r.data));
     api.get("/training-sets").then((r) => setTrainingSets(r.data));
+    api.get("/contacts/ad-referral-options").then((r) => setAdOptions(r.data)).catch(() => {});
   }, []);
 
   const buildParams = useCallback((f, off) => {
@@ -50,6 +53,7 @@ export default function ContactsPage() {
     if (f.q) params.q = f.q;
     if (f.statusId) params.status_id = f.statusId;
     if (f.sectorId) params.sector_id = f.sectorId;
+    if (f.adId) params.ad_id = f.adId;
     if (f.trainingSetId) params.training_set_id = f.trainingSetId;
     if (f.assignedTo) params.assigned_to = f.assignedTo;
     if (f.purchased !== null) params.purchased = f.purchased;
@@ -113,6 +117,7 @@ export default function ContactsPage() {
         statuses={statuses}
         sectors={sectors}
         trainingSets={trainingSets}
+        adOptions={adOptions}
       />
       <ContactDetail
         key={selectedId || "empty"}

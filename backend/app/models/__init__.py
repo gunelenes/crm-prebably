@@ -132,6 +132,8 @@ class ActivityLog(Base):
     description         = Column(Text, nullable=True)
     old_status_id       = Column(Integer, nullable=True)
     new_status_id       = Column(Integer, nullable=True)
+    ad_id               = Column(String(64), nullable=True, index=True)   # type='ad_referral' için
+    ad_title            = Column(String(255), nullable=True)              # type='ad_referral' için
     advisor             = Column(String(100), nullable=True)
     advisor_user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow)

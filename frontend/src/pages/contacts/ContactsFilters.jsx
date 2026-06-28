@@ -22,12 +22,13 @@ function Pill({ active, onClick, children, color }) {
   );
 }
 
-export default function ContactsFilters({ filters, setFilters, statuses, sectors, trainingSets, onClose }) {
+export default function ContactsFilters({ filters, setFilters, statuses, sectors, trainingSets, adOptions = [], onClose }) {
   const update = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const clearAll = () => setFilters({
     q: filters.q,
     statusId: null,
     sectorId: null,
+    adId: null,
     trainingSetId: null,
     assignedTo: "",
     purchased: null,
@@ -81,6 +82,19 @@ export default function ContactsFilters({ filters, setFilters, statuses, sectors
           </select>
         </div>
       </div>
+
+      {adOptions.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">📢 Reklam (geldiği kampanya)</div>
+          <select value={filters.adId || ""} onChange={(e) => update({ adId: e.target.value || null })}
+            className={`${inputCls} w-full`}>
+            <option value="">Tümü</option>
+            {adOptions.map((a) => (
+              <option key={a.ad_id} value={a.ad_id}>{a.ad_title || a.ad_id}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sorumlu Danışman</div>

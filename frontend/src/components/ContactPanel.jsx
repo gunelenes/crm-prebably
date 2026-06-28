@@ -78,6 +78,7 @@ export default function ContactPanel({ contact, statuses, sectors = [], creative
     if (type === "status_change") return "🏷️";
     if (type === "reminder") return "🔔";
     if (type === "note") return "📝";
+    if (type === "ad_referral") return "📢";
     return "📌";
   };
 
@@ -283,6 +284,19 @@ export default function ContactPanel({ contact, statuses, sectors = [], creative
                 </div>
               ))}
             </div>
+            {profile.ad_referrals?.length > 0 && (
+              <div className="pt-3 border-t border-slate-200/60 dark:border-white/10">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">📢 Reklam Geçmişi ({profile.ad_referrals.length})</div>
+                <div className="space-y-1">
+                  {profile.ad_referrals.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-700 dark:text-slate-200 truncate">{r.ad_title || "Reklam"}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(r.created_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {editing && (
               <button onClick={() => setEditing(false)}
                 className="w-full bg-white/60 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/10 rounded-xl py-2 text-sm font-medium transition-colors">İptal</button>

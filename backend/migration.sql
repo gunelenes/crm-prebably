@@ -45,6 +45,15 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS training_set_id INTEGER REFERENCES
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS creative_id     INTEGER REFERENCES creatives(id);
 
 -- ============================================================================
+-- 6) Reklam atıfı: Instagram CTD (Click-to-Direct) reklamından gelen DM'ler
+--    (2026-06 eklendi). Webhook message.referral'ı ActivityLog type='ad_referral'
+--    olarak yazar; aşağıdaki kolonlar mevcut activity_logs tablosuna eklenir.
+-- ============================================================================
+ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS ad_id    VARCHAR(64);
+ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS ad_title VARCHAR(255);
+CREATE INDEX IF NOT EXISTS ix_activity_logs_ad_id ON activity_logs(ad_id);
+
+-- ============================================================================
 -- 4) Eski serbest metin sector / source_video verilerini taşı (opsiyonel)
 -- ============================================================================
 -- 4.1) Mevcut farklı değerleri gör:

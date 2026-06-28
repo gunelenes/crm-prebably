@@ -122,6 +122,34 @@ async def _ensure_contact_conv(db, sender_id, platform, preview_text, display_na
     return contact, conversation, is_new
 
 
+async def _log_ad_referral(db, sender_id, referral):
+    """Instagram CTD (Click-to-Direct) reklamından gelen DM'in atıfını ActivityLog'a yazar.
+
+    Webhook `message.referral` nesnesi yalnızca reklamdan gelen sohbetlerde bulunur.
+    Bir kişi birden çok reklamdan mesaj atabileceği için her referral ayrı kayıt olur
+    (dedup yok). Çağıran taraf webhook retry'lerinde (mid daha önce görüldüyse) bu
+    fonksiyonu çağırmaz, böylece aynı referral iki kez yazılmaz.
+    """
+    from app.models import ActivityLog
+    contact = db.query(Contact).filter(Contact.external_id == sender_id).first()
+    if not contact:
+        return
+    ad_ctx = referral.get("ads_context_data") or {}
+    ad_title = ad_ctx.get("ad_title")
+    ad_id = referral.get("ad_id")
+    db.add(ActivityLog(
+        contact_id=contact.id,
+        type="ad_referral",
+        title=f"📢 Reklamdan geldi: {ad_title or 'Reklam'}",
+        description=f"Reklam ID: {ad_id}" if ad_id else "Reklam kaynağından gelindi",
+        ad_id=ad_id,
+        ad_title=ad_title,
+        created_at=datetime.utcnow(),
+    ))
+    db.commit()
+    print(f"Reklam atıfı kaydedildi: {sender_id} → {ad_title} ({ad_id})")
+
+
 async def _emit_new_message(platform, sender_id, conversation_id, text, is_new):
     try:
         from app.main import sio
@@ -280,10 +308,14 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                 attachments = message.get("attachments")
                 is_unsupported = message.get("is_unsupported")
                 mid = message.get("mid")
+                referral = message.get("referral")  # reklamdan (CTD) geldiyse dolu
 
                 # Kendi gönderdiğimiz mesajları atla
                 if sender_id == our_id:
                     continue
+
+                # Bu mesajı daha önce işledik mi? (webhook retry → referral'ı tekrar yazma)
+                already_seen = bool(mid) and db.query(Message.id).filter(Message.external_id == mid).first() is not None
 
                 if attachments and sender_id:
                     await save_attachments(db, sender_id, attachments, mid, "instagram")
@@ -291,6 +323,9 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     await save_message(db, sender_id, text, mid, "instagram")
                 elif is_unsupported and sender_id:
                     await save_message(db, sender_id, UNSUPPORTED_TEXT, mid, "instagram")
+
+                if referral and sender_id and not already_seen:
+                    await _log_ad_referral(db, sender_id, referral)
 
             for change in entry.get("changes", []):
                 if change.get("field") == "messages":
@@ -302,10 +337,14 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                     attachments = message.get("attachments")
                     is_unsupported = message.get("is_unsupported")
                     mid = message.get("mid")
+                    referral = message.get("referral")  # reklamdan (CTD) geldiyse dolu
 
                     # Kendi gönderdiğimiz mesajları atla
                     if sender_id == our_id_change:
                         continue
+
+                    # Bu mesajı daha önce işledik mi? (webhook retry → referral'ı tekrar yazma)
+                    already_seen = bool(mid) and db.query(Message.id).filter(Message.external_id == mid).first() is not None
 
                     if attachments and sender_id:
                         await save_attachments(db, sender_id, attachments, mid, "instagram")
@@ -313,6 +352,9 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
                         await save_message(db, sender_id, text, mid, "instagram")
                     elif is_unsupported and sender_id:
                         await save_message(db, sender_id, UNSUPPORTED_TEXT, mid, "instagram")
+
+                    if referral and sender_id and not already_seen:
+                        await _log_ad_referral(db, sender_id, referral)
 
     elif body.get("object") == "whatsapp_business_account":
         # WhatsApp Cloud API: gövde IG'den tamamen farklı.

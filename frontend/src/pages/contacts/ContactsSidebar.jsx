@@ -7,13 +7,14 @@ export default function ContactsSidebar({
   filters, setFilters,
   items, total, loading, loadingMore, hasMore, loadMore,
   selectedId, onSelect,
-  statuses, sectors, trainingSets,
+  statuses, sectors, trainingSets, adOptions = [],
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const activeFilterCount =
     (filters.statusId ? 1 : 0) +
     (filters.sectorId ? 1 : 0) +
+    (filters.adId ? 1 : 0) +
     (filters.trainingSetId ? 1 : 0) +
     (filters.assignedTo ? 1 : 0) +
     (filters.purchased !== null ? 1 : 0) +
@@ -65,6 +66,7 @@ export default function ContactsSidebar({
             statuses={statuses}
             sectors={sectors}
             trainingSets={trainingSets}
+            adOptions={adOptions}
             onClose={() => setFiltersOpen(false)}
           />
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../api";
+import { formatTime } from "../../utils";
 import Spinner from "../../components/Spinner";
 import UserSelect from "../../components/UserSelect";
 
@@ -164,6 +165,23 @@ export default function ContactProfileTab({ profile, sectors, creatives = [], tr
               </div>
             ))}
           </div>
+
+          {profile.ad_referrals?.length > 0 && (
+            <div className="pt-3 border-t border-slate-200/60 dark:border-white/10">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
+                📢 Reklam Geçmişi
+                <span className="text-slate-400 dark:text-slate-500 normal-case">({profile.ad_referrals.length})</span>
+              </div>
+              <div className="space-y-1.5">
+                {profile.ad_referrals.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-slate-700 dark:text-slate-200 truncate">{r.ad_title || "Reklam"}</span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 flex-shrink-0">{formatTime(r.created_at)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
