@@ -4,6 +4,7 @@ import AdsKpiCards from "./AdsKpiCards";
 import AdsChannelCards from "./AdsChannelCards";
 import AdAccountCards from "./AdAccountCards";
 import AdsCampaignTable from "./AdsCampaignTable";
+import AdsCampaignStatus from "./AdsCampaignStatus";
 import AdSpendTable from "./AdSpendTable";
 import { todayISO, daysAgoISO } from "./format";
 
@@ -19,15 +20,24 @@ export default function AdvertisingPage() {
   const [account, setAccount] = useState(""); // "" = Tümü
   const [campaign, setCampaign] = useState(""); // "" = Tümü
   const [status, setStatus] = useState(null); // /ads/status: son senkron + token durumu
+  const [campaignStatus, setCampaignStatus] = useState(null); // /ad-campaigns: anlık kampanya durumları
 
   const fetchStatus = useCallback(() => {
     api.get("/ads/status").then((r) => setStatus(r.data)).catch(() => {});
   }, []);
 
+  // Kampanya durumu anlıktır: yalnızca hesap filtresine duyarlı (tarih aralığından bağımsız).
+  const fetchCampaignStatus = useCallback(() => {
+    api.get("/ad-campaigns", { params: account ? { account } : {} })
+      .then((r) => setCampaignStatus(r.data)).catch(() => {});
+  }, [account]);
+
   useEffect(() => {
     api.get("/ad-accounts").then((r) => setAccounts(r.data)).catch(() => {});
     fetchStatus();
   }, [fetchStatus]);
+
+  useEffect(() => { fetchCampaignStatus(); }, [fetchCampaignStatus]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -75,6 +85,7 @@ export default function AdvertisingPage() {
         });
         await fetchAll();
         fetchStatus();
+        fetchCampaignStatus();
       }
     } catch (err) {
       setSyncMsg({ type: "error", text: err.response?.data?.detail || "Senkronizasyon başarısız" });
@@ -192,6 +203,8 @@ export default function AdvertisingPage() {
           </h3>
           <AdsCampaignTable rows={summary?.by_campaign} selected={campaign} onSelect={setCampaign} />
         </div>
+
+        <AdsCampaignStatus data={campaignStatus} />
 
         <div>
           <h3 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-2">

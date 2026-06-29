@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select, case
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import AdAccount, AdSpend, Registration, Contact, Payment, AdSyncState, User, ActivityLog
+from app.models import AdAccount, AdSpend, AdCampaign, Registration, Contact, Payment, AdSyncState, User, ActivityLog
 from app.auth import require_admin
 from app.utils import iso_utc
 from app import config
@@ -141,6 +141,38 @@ def _channel_from_destination(destination_type) -> Optional[str]:
     if dt.startswith("MESSAGING_"):       # çoklu hedef: Meta kullanıcıya göre seçer
         return "karma"
     return None
+
+
+# Meta kampanya effective_status → uygulama durumu (state) + TR etiket.
+# state: aktif | durmus | inceleme | sorunlu | diger
+_CAMPAIGN_STATE = {
+    "ACTIVE": ("aktif", "Aktif"),
+    "PAUSED": ("durmus", "Durduruldu (elle)"),
+    "CAMPAIGN_PAUSED": ("durmus", "Kampanya duraklatıldı"),
+    "ADSET_PAUSED": ("durmus", "Reklam seti duraklatıldı"),
+    "IN_PROCESS": ("inceleme", "İşleniyor"),
+    "PENDING_REVIEW": ("inceleme", "İncelemede"),
+    "WITH_ISSUES": ("sorunlu", "Sorunlu"),
+    "DISAPPROVED": ("sorunlu", "Reddedildi"),
+    "PENDING_BILLING_INFO": ("sorunlu", "Ödeme bilgisi bekliyor"),
+    "ARCHIVED": ("diger", "Arşivlendi"),
+    "DELETED": ("diger", "Silindi"),
+}
+
+# Neden (issues) yoksa state'e göre varsayılan açıklama.
+_STATE_DEFAULT_REASON = {
+    "durmus": "Elle duraklatıldı",
+    "inceleme": "Meta incelemesi sürüyor",
+    "sorunlu": "Yayın/politika sorunu (ayrıntı Meta panelinde)",
+}
+
+
+def _campaign_state(effective_status) -> tuple:
+    """effective_status → (state, state_label). Bilinmeyen → ('diger', ham değer)."""
+    es = (effective_status or "").upper()
+    if es in _CAMPAIGN_STATE:
+        return _CAMPAIGN_STATE[es]
+    return ("diger", effective_status or "Bilinmiyor")
 
 
 def _action_value(actions, types) -> int:
@@ -373,6 +405,77 @@ def _upsert_spend(db, rec, act_id, name, purpose, default_channel, dest_map) -> 
     return 1
 
 
+def _summarize_issues(issues_info) -> Optional[str]:
+    """Meta issues_info listesini tek satırlık nedene indirger. Boş → None."""
+    if not issues_info:
+        return None
+    parts = []
+    for it in issues_info:
+        if not isinstance(it, dict):
+            continue
+        msg = (it.get("error_summary") or it.get("error_message") or "").strip()
+        if msg and msg not in parts:
+            parts.append(msg)
+    return " · ".join(parts) or None
+
+
+def _fetch_campaigns(client, act_id, token, version) -> list:
+    """Hesabın kampanyalarını anlık durumlarıyla çeker. Hata/exception → []
+    (senkronu düşürmesin). DELETED varsayılan olarak dönmez; ARCHIVED hariç tutulur."""
+    url = f"https://graph.facebook.com/{version}/{act_id}/campaigns"
+    params = {
+        "fields": "id,name,objective,configured_status,effective_status,issues_info",
+        "limit": 200,
+        "access_token": token,
+    }
+    out, page = [], 0
+    try:
+        while url and page < 50:
+            data = _meta_get(client, url, params)
+            params = None  # paging.next tam URL içerir
+            if data.get("error"):
+                return out
+            out.extend(data.get("data", []))
+            url = (data.get("paging") or {}).get("next")
+            page += 1
+    except Exception:
+        return out
+    return out
+
+
+def _upsert_campaigns(db, act_id, name, campaigns) -> int:
+    """Kampanya durumlarını (account_act_id, campaign_id) bazında upsert eder ve bu
+    çekimde dönmeyen (silinmiş) o hesaba ait satırları temizler. Döndürülen: upsert sayısı."""
+    seen_ids = set()
+    upserted = 0
+    for c in campaigns:
+        cid = c.get("id")
+        if not cid:
+            continue
+        seen_ids.add(cid)
+        existing = (db.query(AdCampaign)
+                    .filter(AdCampaign.account_act_id == act_id, AdCampaign.campaign_id == cid)
+                    .first())
+        target = existing or AdCampaign(account_act_id=act_id, campaign_id=cid)
+        if existing is None:
+            db.add(target)
+        target.account_name = name
+        target.campaign_name = c.get("name")
+        target.objective = c.get("objective")
+        target.configured_status = c.get("configured_status")
+        target.effective_status = c.get("effective_status")
+        target.issues = _summarize_issues(c.get("issues_info"))
+        target.updated_at = datetime.utcnow()
+        target.synced_at = datetime.utcnow()
+        upserted += 1
+    # Pruning: bu hesapta artık dönmeyen kampanyalar (silinmiş/arşivlenmiş) silinir.
+    q = db.query(AdCampaign).filter(AdCampaign.account_act_id == act_id)
+    if seen_ids:
+        q = q.filter(AdCampaign.campaign_id.notin_(seen_ids))
+    q.delete(synchronize_session=False)
+    return upserted
+
+
 def run_ad_sync(db, client, token, version, from_d, to_d) -> dict:
     """Senkronizasyon çekirdeği — endpoint ve otomatik görev ortak kullanır.
     Sadece Parametreler'de tanımlı (aktif) hesapları çeker."""
@@ -412,6 +515,13 @@ def run_ad_sync(db, client, token, version, from_d, to_d) -> dict:
                 page += 1
         except Exception as e:  # ağ/parse hatası bir hesabı düşürmesin
             errors.append({"account": act_id, "error": str(e)})
+
+        # Kampanya anlık durumları (harcamadan bağımsız; durmuş kampanyalar da gelir).
+        try:
+            camps = _fetch_campaigns(client, act_id, token, version)
+            _upsert_campaigns(db, act_id, name, camps)
+        except Exception as e:
+            errors.append({"account": act_id, "error": f"kampanya durumu: {e}"})
 
     db.commit()
     return {"status": "ok", "synced": upserted, "accounts": len(accounts), "errors": errors}
@@ -833,6 +943,58 @@ def clear_ad_spend(
     deleted = q.delete(synchronize_session=False)
     db.commit()
     return {"status": "ok", "deleted": int(deleted or 0)}
+
+
+@router.get("/ad-campaigns")
+def list_ad_campaigns(
+    account: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Kampanyaların ANLIK durumu (aktif/durmuş/sorunlu) + nedeni. Harcamadan ve tarih
+    aralığından bağımsızdır (kampanya nesnesinden senkronlanır). Yalnızca Parametreler'de
+    tanımlı hesaplar gösterilir. `last_spend_date` = o kampanyanın AdSpend'deki son harcama
+    günü (kampanya 'Aktif' görünüp uzun süredir harcama yoksa ipucu verir)."""
+    base = db.query(AdCampaign).filter(AdCampaign.account_act_id.in_(select(AdAccount.act_id)))
+    if account:
+        base = base.filter(AdCampaign.account_act_id == account)
+    rows = base.all()
+
+    # Kampanya başına son harcama günü (campaign_id ile eşleştirilir).
+    spend_dates = dict(
+        db.query(AdSpend.campaign_id, func.max(AdSpend.date))
+        .filter(AdSpend.campaign_id.isnot(None))
+        .group_by(AdSpend.campaign_id).all()
+    )
+
+    # Sıralama önceliği: sorunlu > durmus > inceleme > aktif > diger
+    order = {"sorunlu": 0, "durmus": 1, "inceleme": 2, "aktif": 3, "diger": 4}
+    items = []
+    for c in rows:
+        state, label = _campaign_state(c.effective_status)
+        reason = c.issues or _STATE_DEFAULT_REASON.get(state)
+        last_spend = spend_dates.get(c.campaign_id)
+        items.append({
+            "campaign_id": c.campaign_id,
+            "campaign_name": c.campaign_name or "(isimsiz)",
+            "account_act_id": c.account_act_id,
+            "account_name": c.account_name or c.account_act_id,
+            "objective": c.objective,
+            "effective_status": c.effective_status,
+            "state": state,
+            "state_label": label,
+            "reason": reason,
+            "last_spend_date": last_spend.isoformat() if last_spend else None,
+            "synced_at": iso_utc(c.synced_at),
+        })
+    items.sort(key=lambda x: (order.get(x["state"], 9),
+                              (x["account_name"] or "").lower(),
+                              (x["campaign_name"] or "").lower()))
+
+    counts = {}
+    for it in items:
+        counts[it["state"]] = counts.get(it["state"], 0) + 1
+    return {"items": items, "counts": counts, "total": len(items)}
 
 
 @router.get("/analytics/campaign-arrivals")

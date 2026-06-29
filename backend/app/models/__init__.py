@@ -282,6 +282,26 @@ class AdSpend(Base):
         Index("ix_adspend_acct_date", "account_act_id", "date"),
     )
 
+class AdCampaign(Base):
+    """Meta kampanyasının ANLIK durumu (aktif/durmuş/sorunlu). Harcamadan (AdSpend)
+    bağımsızdır: Insights API durmuş kampanyaları döndürmediği için durum, kampanya
+    nesnesinden (/{act_id}/campaigns) çekilir. Her senkronda tazelenir."""
+    __tablename__ = "ad_campaigns"
+    id                = Column(Integer, primary_key=True, index=True)
+    account_act_id    = Column(String(64), nullable=False, index=True)   # "act_..." önekli
+    account_name      = Column(String(150), nullable=True)
+    campaign_id       = Column(String(64), nullable=False, index=True)
+    campaign_name     = Column(String(255), nullable=True)
+    objective         = Column(String(50), nullable=True)
+    configured_status = Column(String(30), nullable=True)   # kullanıcının ayarı (ACTIVE/PAUSED)
+    effective_status  = Column(String(30), nullable=True)   # Meta'nın gerçek durumu
+    issues            = Column(Text, nullable=True)         # issues_info özeti (durmama/red nedeni)
+    updated_at        = Column(DateTime, default=datetime.utcnow)
+    synced_at         = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("account_act_id", "campaign_id", name="uq_adcampaign_acct_camp"),
+    )
+
 class AdSyncState(Base):
     """Otomatik reklam senkronizasyonu + token durumu (tek satır)."""
     __tablename__ = "ad_sync_state"
