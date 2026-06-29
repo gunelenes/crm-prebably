@@ -10,6 +10,7 @@ const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const ContactsPage = lazy(() => import("./pages/contacts/ContactsPage"));
 const PaymentsPage = lazy(() => import("./pages/payments/PaymentsPage"));
 const AdvertisingPage = lazy(() => import("./pages/advertising/AdvertisingPage"));
+const CampaignStatusPage = lazy(() => import("./pages/advertising/CampaignStatusPage"));
 const ReportsPage = lazy(() => import("./pages/reports/ReportsPage"));
 const RemindersPage = lazy(() => import("./pages/RemindersPage"));
 const QuickRepliesPage = lazy(() => import("./pages/QuickRepliesPage"));
@@ -51,6 +52,9 @@ export default function App() {
         } />
         <Route path="reklam-analizi" element={
           <ProtectedRoute adminOnly><AdvertisingPage /></ProtectedRoute>
+        } />
+        <Route path="kampanya-durumlari" element={
+          <ProtectedRoute adminOnly><CampaignStatusPage /></ProtectedRoute>
         } />
         <Route path="grafikler" element={
           <ProtectedRoute adminOnly><ReportsPage /></ProtectedRoute>

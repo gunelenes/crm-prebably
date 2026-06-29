@@ -23,6 +23,18 @@ export const CHANNEL_META = {
   other: { label: "Diğer", icon: "🔗", gradient: "bg-gradient-to-br from-slate-500 to-slate-700", shadow: "shadow-slate-500/30" },
 };
 
+// Kampanya durumu (backend `state`) → etiket + rozet/nokta stilleri. Tablo ve filtre
+// chip'leri ortak kullanır. (Tabloda daha özgül `state_label` backend'den gelir.)
+export const CAMPAIGN_STATE_META = {
+  aktif:    { label: "Aktif",      badge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30", dot: "bg-emerald-500" },
+  durmus:   { label: "Durduruldu", badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",       dot: "bg-amber-500" },
+  sorunlu:  { label: "Sorunlu",    badge: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",           dot: "bg-rose-500" },
+  inceleme: { label: "İncelemede", badge: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",              dot: "bg-sky-500" },
+  diger:    { label: "Diğer",      badge: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",       dot: "bg-slate-400" },
+};
+
+export const CAMPAIGN_STATE_ORDER = ["aktif", "durmus", "sorunlu", "inceleme", "diger"];
+
 // İstanbul gününe göre "YYYY-MM-DD" (tarayıcı saat diliminden bağımsız; gece geç saatte gün kaymaz).
 const istanbulISO = (d) =>
   new Intl.DateTimeFormat("en-CA", {
