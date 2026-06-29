@@ -54,12 +54,21 @@ def dashboard_summary(
         waiting_conversations_q(db).with_entities(func.count(Conversation.id)).scalar()
     ) or 0
 
+    # Bugün reklamla İLK KEZ gelen kişi (ad_referral, is_first_touch) — TR günü.
+    ad_first_touch = (db.query(func.count(func.distinct(ActivityLog.contact_id)))
+                      .filter(ActivityLog.type == "ad_referral",
+                              ActivityLog.is_first_touch == True,
+                              ActivityLog.created_at >= today_start,
+                              ActivityLog.created_at < today_end_utc)
+                      .scalar() or 0)
+
     today = {
         "incoming_messages": int(incoming),
         "outgoing_messages": int(outgoing),
         "new_contacts": int(new_contacts),
         "active_reminders": int(active_reminders),
         "waiting_replies": int(waiting_replies),
+        "ad_first_touch_arrivals": int(ad_first_touch),
     }
 
     # Aylık finansal — sadece admin

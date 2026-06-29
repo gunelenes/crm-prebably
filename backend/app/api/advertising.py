@@ -835,6 +835,36 @@ def clear_ad_spend(
     return {"status": "ok", "deleted": int(deleted or 0)}
 
 
+@router.get("/analytics/campaign-arrivals")
+def campaign_arrivals(
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Kampanya bazında gelen kişi sayıları — HARCAMADAN BAĞIMSIZ (yalnızca ActivityLog
+    ad_referral kayıtları). `contacts` = kampanyadan gelen toplam (distinct) kişi,
+    `new_customers` = ilk teması bu kampanya olan (reklamla kazanılan) kişi.
+    Kampanya adı çözülmemiş kayıtlar `(çözülmedi)` altında toplanır (sessizce düşmesin)."""
+    to_d = _parse_date(to) or today_tr()
+    from_d = _parse_date(from_) or (to_d - timedelta(days=30))
+    from_dt = datetime.combine(from_d, datetime.min.time())
+    to_dt = datetime.combine(to_d, datetime.max.time())
+    cname = func.coalesce(ActivityLog.campaign_name, "(çözülmedi)")
+    rows = (db.query(
+        cname,
+        func.count(func.distinct(ActivityLog.contact_id)),
+        func.count(func.distinct(case((ActivityLog.is_first_touch.is_(True), ActivityLog.contact_id)))),
+    ).filter(ActivityLog.type == "ad_referral",
+             ActivityLog.created_at >= from_dt,
+             ActivityLog.created_at <= to_dt)
+     .group_by(cname).all())
+    items = [{"campaign_name": cn, "contacts": int(c or 0), "new_customers": int(nc or 0)}
+             for cn, c, nc in rows]
+    items.sort(key=lambda x: -x["contacts"])
+    return {"range": {"from": from_d.isoformat(), "to": to_d.isoformat()}, "items": items}
+
+
 @router.get("/analytics/summary")
 def analytics_summary(
     from_: Optional[str] = Query(None, alias="from"),

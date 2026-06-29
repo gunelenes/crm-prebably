@@ -43,8 +43,8 @@ export default function DashboardPage() {
         </div>
 
         {loading && !summary ? (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-24 rounded-2xl bg-slate-200/60 dark:bg-white/5 animate-pulse" />
             ))}
           </div>

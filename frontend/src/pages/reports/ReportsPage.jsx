@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import TrendChart from "./TrendChart";
+import CampaignArrivalsChart from "./CampaignArrivalsChart";
 import { fmtCurrency, fmtNum, todayISO, daysAgoISO } from "../advertising/format";
 
 const MSG_SERIES = [
@@ -20,12 +21,18 @@ export default function ReportsPage() {
   const [to, setTo] = useState(todayISO());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [campaigns, setCampaigns] = useState([]);     // kampanya bazında gelen kişi
+  const [campaignFilter, setCampaignFilter] = useState(""); // "" = tümü
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/dashboard/timeseries", { params: { from, to } });
-      setData(res.data);
+      const [ts, ca] = await Promise.all([
+        api.get("/dashboard/timeseries", { params: { from, to } }),
+        api.get("/analytics/campaign-arrivals", { params: { from, to } }),
+      ]);
+      setData(ts.data);
+      setCampaigns(ca.data.items || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -40,6 +47,10 @@ export default function ReportsPage() {
 
   const days = data?.days || [];
   const t = data?.totals || {};
+  const shownCampaigns = useMemo(
+    () => (campaignFilter ? campaigns.filter((c) => c.campaign_name === campaignFilter) : campaigns),
+    [campaigns, campaignFilter]
+  );
 
   return (
     <div className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -84,6 +95,26 @@ export default function ReportsPage() {
         <ChartCard title="Finansal Trend (Reklam Harcaması Dahil)" loading={loading}>
           <TrendChart data={days} series={FIN_SERIES} formatValue={(v) => fmtCurrency(v)} />
         </ChartCard>
+
+        {/* Grafik 3: Kampanya bazında gelen kişi */}
+        <div className="rounded-2xl bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/60 dark:border-white/10 shadow-sm p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+              Kampanya Bazında Gelen Kişi
+            </h3>
+            <select value={campaignFilter} onChange={(e) => setCampaignFilter(e.target.value)} className={dateCls}>
+              <option value="">Tüm Kampanyalar</option>
+              {campaigns.map((c) => (
+                <option key={c.campaign_name} value={c.campaign_name}>{c.campaign_name}</option>
+              ))}
+            </select>
+          </div>
+          {loading ? (
+            <div className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">Yükleniyor…</div>
+          ) : (
+            <CampaignArrivalsChart items={shownCampaigns} />
+          )}
+        </div>
       </div>
     </div>
   );

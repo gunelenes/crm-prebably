@@ -15,8 +15,9 @@ function KpiCard({ icon, label, value, accent }) {
 export default function DashboardKpiCards({ today }) {
   const t = today || {};
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       <KpiCard icon="💬" label="Gelen Mesaj" value={t.incoming_messages} accent="text-indigo-500" />
+      <KpiCard icon="🌟" label="Reklamla İlk Kez" value={t.ad_first_touch_arrivals} accent="text-emerald-500" />
       <KpiCard icon="✉️" label="Giden Mesaj" value={t.outgoing_messages} accent="text-violet-500" />
       <KpiCard icon="👤" label="Yeni Kişi" value={t.new_contacts} accent="text-emerald-500" />
       <KpiCard icon="⌛" label="Cevap Bekliyor" value={t.waiting_replies} accent="text-orange-500" />
