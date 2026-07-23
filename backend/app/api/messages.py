@@ -6,7 +6,7 @@ from sqlalchemy import func, or_
 from app.database import get_db
 from app.models import Contact, Conversation, Message, User, QuickReply
 from app.auth import get_current_user, decode_token
-from app.config import INSTAGRAM_TOKEN, PUBLIC_BASE_URL, WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
+from app.config import INSTAGRAM_TOKEN, INSTAGRAM_GRAPH_VERSION, PUBLIC_BASE_URL, WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
 from app.queries import waiting_conversations_q
 from app.utils import iso_utc, serialize_status
 from datetime import datetime, timedelta
@@ -39,7 +39,7 @@ async def _send_text(request, platform, recipient_id, text):
         return {"error": result.get("error", {}).get("message", "Bilinmeyen hata")}
 
     # instagram (varsayılan)
-    url = "https://graph.instagram.com/v19.0/me/messages"
+    url = f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/me/messages"
     payload = {
         "recipient": {"id": recipient_id},
         "message": {"text": text},
@@ -301,7 +301,7 @@ async def reply_audio(conversation_id: int, request: Request, current_user: User
     # Meta sesi bu public adresten sunucu tarafında çeker.
     audio_url = f"{PUBLIC_BASE_URL.rstrip('/')}/api/quick-replies/{reply.id}/audio"
 
-    url = "https://graph.instagram.com/v19.0/me/messages"
+    url = f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/me/messages"
     payload = {
         "recipient": {"id": contact.external_id},
         "message": {"attachment": {"type": "audio", "payload": {"url": audio_url}}},

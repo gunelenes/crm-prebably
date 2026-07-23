@@ -26,15 +26,24 @@ def _verify_signature(raw: bytes, header: str) -> bool:
     return hmac.compare_digest(expected, header.split("=", 1)[1])
 
 async def get_instagram_username(sender_id: str) -> str:
-    from app.config import INSTAGRAM_TOKEN
+    from app.config import INSTAGRAM_TOKEN, INSTAGRAM_GRAPH_VERSION
     from app import main as app_main
     try:
-        url = f"https://graph.instagram.com/v19.0/{sender_id}?fields=name,username&access_token={INSTAGRAM_TOKEN}"
+        url = (f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/{sender_id}"
+               f"?fields=name,username&access_token={INSTAGRAM_TOKEN}")
         response = await app_main.http_client.get(url)
         data = response.json()
         # Instagram kullanıcı adı (@handle) öncelikli; yoksa görünen ad, o da yoksa fallback.
-        return data.get("username") or data.get("name") or f"Instagram Kullanici {sender_id[-6:]}"
-    except:
+        name = data.get("username") or data.get("name")
+        if name:
+            return name
+        # İsim gelmedi: gerçek sebebi (ör. süresi dolmuş token / kaldırılmış API sürümü)
+        # logla ki fallback isimlerin kaynağı görünür olsun (bkz. Sistem Sağlığı paneli).
+        print(f"UYARI: Instagram kullanıcı adı alınamadı ({sender_id}). "
+              f"Graph yanıtı: {data.get('error') or data}")
+        return f"Instagram Kullanici {sender_id[-6:]}"
+    except Exception as e:
+        print(f"UYARI: Instagram kullanıcı adı sorgusu hata verdi ({sender_id}): {e}")
         return f"Instagram Kullanici {sender_id[-6:]}"
 
 # Gelen medya için ring buffer: her türden en fazla bu kadar dosya saklanır.
@@ -566,7 +575,7 @@ async def test_conversations(request: Request, _: User = Depends(require_admin))
 
 @router.post("/sync-conversations")
 def sync_conversations(request: Request, _: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from app.config import INSTAGRAM_TOKEN
+    from app.config import INSTAGRAM_TOKEN, INSTAGRAM_GRAPH_VERSION
     from datetime import timezone
     import dateutil.parser
 
@@ -578,8 +587,8 @@ def sync_conversations(request: Request, _: User = Depends(get_current_user), db
 
     synced = 0
     skipped = 0
-    # page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages{{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}"
-    page_url = f"https://graph.instagram.com/v19.0/me/conversations?fields=id,participants,messages.limit(10){{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}&limit=20"
+    # page_url = f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/me/conversations?fields=id,participants,messages{{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}"
+    page_url = f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/me/conversations?fields=id,participants,messages.limit(10){{message,from,created_time,id}}&access_token={INSTAGRAM_TOKEN}&limit=20"
     client = request.app.state.sync_http
     while page_url:
         response = client.get(page_url, timeout=60.0)
@@ -704,16 +713,17 @@ def sync_conversations(request: Request, _: User = Depends(get_current_user), db
     return {"status": "ok", "synced": synced, "skipped": skipped}
 
 
-@router.post("/backfill-usernames")
-def backfill_usernames(request: Request, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Tek seferlik: mevcut Instagram kişilerinin `name` alanını kullanıcı adıyla (@handle) günceller.
+def backfill_instagram_usernames(client, db) -> dict:
+    """Mevcut Instagram kişilerinin `name` alanını Graph API'deki @handle ile günceller.
 
-    Elle verilen isimler `full_name`'de tutulduğu ve görüntü `full_name or name`
-    olduğu için bu işlem elle isimlendirilmiş kişileri görünürde değiştirmez.
+    Token yenilendikten sonra fallback isimde ("Instagram Kullanici ...") kalmış
+    kişileri düzeltmek için kullanılır. Elle verilen isimler `full_name`'de tutulduğu
+    ve görüntü `full_name or name` olduğu için elle isimlendirilmiş kişiler görünürde
+    değişmez. Salt yardımcı — HTTP client ve DB session çağıran taraftan gelir; hem
+    admin `/backfill-usernames` hem owner Sistem Sağlığı paneli tarafından çağrılır.
     """
-    from app.config import INSTAGRAM_TOKEN
+    from app.config import INSTAGRAM_TOKEN, INSTAGRAM_GRAPH_VERSION
 
-    client = request.app.state.sync_http
     updated = 0
     failed = 0
     skipped = 0
@@ -724,7 +734,7 @@ def backfill_usernames(request: Request, _: User = Depends(require_admin), db: S
             skipped += 1
             continue
         try:
-            url = (f"https://graph.instagram.com/v19.0/{contact.external_id}"
+            url = (f"https://graph.instagram.com/{INSTAGRAM_GRAPH_VERSION}/{contact.external_id}"
                    f"?fields=name,username&access_token={INSTAGRAM_TOKEN}")
             data = client.get(url, timeout=30.0).json()
             username = data.get("username")
@@ -740,5 +750,11 @@ def backfill_usernames(request: Request, _: User = Depends(require_admin), db: S
 
     return {"status": "ok", "updated": updated, "skipped": skipped, "failed": failed,
             "total": len(contacts)}
+
+
+@router.post("/backfill-usernames")
+def backfill_usernames(request: Request, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Tek seferlik: mevcut Instagram kişilerinin `name` alanını kullanıcı adıyla (@handle) günceller."""
+    return backfill_instagram_usernames(request.app.state.sync_http, db)
 
     

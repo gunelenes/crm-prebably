@@ -8,6 +8,9 @@ WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID")
 INSTAGRAM_TOKEN = os.getenv("INSTAGRAM_TOKEN")
 INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID")
 INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET")
+# Instagram Graph API sürümü. Meta eski sürümleri kullanımdan kaldırdığında burayı
+# (deploy'suz, env ile) güncelleyebilmek için sabit kod yerine env'den okunur.
+INSTAGRAM_GRAPH_VERSION = os.getenv("INSTAGRAM_GRAPH_VERSION", "v21.0")
 WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN")
 # Kendi Instagram/Sayfa hesabımızın ID'si (giden/gelen ayrımı + sync katılımcı filtresi).
 INSTAGRAM_PAGE_ID = os.getenv("INSTAGRAM_PAGE_ID", "17841401244343060")
@@ -24,6 +27,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/c
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 7
+
+# Geliştirici/sahibi paneli erişimi: yalnızca bu kullanıcı adına sahip hesap
+# "owner" sayılır (admin bile değil). Uygulama satıldığında alıcı bu env'i bilmediği
+# için Sistem Sağlığı paneline erişemez. Boşsa hiç kimse owner değildir.
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "")
 
 # --- Meta reklam analizi (Marketing/Insights API) ---
 # ads_read izinli system-user / business token. Aynı token business altındaki tüm
