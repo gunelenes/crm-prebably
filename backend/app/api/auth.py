@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, get_current_user, verify_password
+from app.auth import create_access_token, get_current_user, is_owner_user, verify_password
 from app.database import get_db
 from app.models import User
 
@@ -30,6 +30,7 @@ def login(
             "full_name": user.full_name,
             "email": user.email,
             "role": user.role,
+            "is_owner": is_owner_user(user),
         },
     }
 
@@ -43,4 +44,5 @@ def me(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "role": current_user.role,
         "is_active": current_user.is_active,
+        "is_owner": is_owner_user(current_user),
     }

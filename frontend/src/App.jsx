@@ -20,6 +20,7 @@ const UsersPage = lazy(() => import("./pages/UsersPage"));
 const SeminarFormsPage = lazy(() => import("./pages/seminar-forms/SeminarFormsPage"));
 const FormRegistrationsPage = lazy(() => import("./pages/seminar-forms/FormRegistrationsPage"));
 const PublicFormPage = lazy(() => import("./pages/public/PublicFormPage"));
+const SystemHealthPage = lazy(() => import("./pages/system/SystemHealthPage"));
 
 function PublicFallback() {
   return (
@@ -67,6 +68,9 @@ export default function App() {
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
         <Route path="kullanicilar" element={
           <ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>
+        } />
+        <Route path="gelistirici" element={
+          <ProtectedRoute ownerOnly><SystemHealthPage /></ProtectedRoute>
         } />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

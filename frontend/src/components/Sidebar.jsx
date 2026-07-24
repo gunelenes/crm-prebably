@@ -18,6 +18,7 @@ const menuItems = [
   { to: "/hatalar", icon: "🐛", label: "Hata Takibi" },
   { to: "/parametreler", icon: "⚙️", label: "Parametreler" },
   { to: "/kullanicilar", icon: "👥", label: "Kullanıcılar", adminOnly: true },
+  { to: "/gelistirici", icon: "🛠️", label: "Geliştirici", ownerOnly: true },
 ];
 
 export default function Sidebar() {
@@ -25,7 +26,9 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
 
-  const visible = menuItems.filter((m) => !m.adminOnly || user?.role === "admin");
+  const visible = menuItems.filter(
+    (m) => (!m.adminOnly || user?.role === "admin") && (!m.ownerOnly || user?.is_owner)
+  );
 
   const handleLogout = () => {
     logout();

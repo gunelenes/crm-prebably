@@ -78,3 +78,19 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
             detail="Bu işlem için admin yetkisi gerekli",
         )
     return user
+
+
+def is_owner_user(user: User) -> bool:
+    """Geliştirici/sahibi mi? OWNER_USERNAME env'i ile eşleşen kullanıcı adı.
+    Rol bağımsızdır (admin olmak owner olmayı gerektirmez ve tersi)."""
+    from app.config import OWNER_USERNAME
+    return bool(OWNER_USERNAME) and user.username == OWNER_USERNAME
+
+
+def require_owner(user: User = Depends(get_current_user)) -> User:
+    if not is_owner_user(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu alana yalnızca geliştirici erişebilir",
+        )
+    return user
