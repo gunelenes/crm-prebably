@@ -4,7 +4,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
 
-// Sayfalar lazy yüklenir → ilk bundle küçülür, her route ayrı chunk. test
+// Sayfalar lazy yüklenir → ilk bundle küçülür, her route ayrı chunk.test
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const ContactsPage = lazy(() => import("./pages/contacts/ContactsPage"));
@@ -20,7 +20,6 @@ const UsersPage = lazy(() => import("./pages/UsersPage"));
 const SeminarFormsPage = lazy(() => import("./pages/seminar-forms/SeminarFormsPage"));
 const FormRegistrationsPage = lazy(() => import("./pages/seminar-forms/FormRegistrationsPage"));
 const PublicFormPage = lazy(() => import("./pages/public/PublicFormPage"));
-const SystemHealthPage = lazy(() => import("./pages/system/SystemHealthPage"));
 
 function PublicFallback() {
   return (
@@ -68,9 +67,6 @@ export default function App() {
         <Route path="statuler" element={<Navigate to="/parametreler" replace />} />
         <Route path="kullanicilar" element={
           <ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>
-        } />
-        <Route path="gelistirici" element={
-          <ProtectedRoute ownerOnly><SystemHealthPage /></ProtectedRoute>
         } />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
