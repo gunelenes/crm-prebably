@@ -4,7 +4,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/LoginPage";
 
-// Sayfalar lazy yüklenir → ilk bundle küçülür, her route ayrı chunk.
+// Sayfalar lazy yüklenir → ilk bundle küçülür, her route ayrı chunk. test
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const ContactsPage = lazy(() => import("./pages/contacts/ContactsPage"));
