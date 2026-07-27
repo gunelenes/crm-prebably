@@ -55,9 +55,7 @@ export default function SystemHealthPage() {
     setBackfillMsg("");
     try {
       const res = await api.post("/system/instagram/backfill-usernames");
-      const r = res.data;
-      setBackfillMsg(`${r.updated} kişi güncellendi, ${r.skipped} atlandı, ${r.failed} başarısız (toplam ${r.total}).`);
-      load();
+      setBackfillMsg(res.data?.message || "Backfill arka planda başlatıldı.");
     } catch (err) {
       setBackfillMsg("Hata: " + (err.response?.data?.detail || "İşlem başarısız."));
     } finally {

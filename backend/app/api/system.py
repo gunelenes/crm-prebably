@@ -6,11 +6,11 @@ Uygulama satıldığında alıcı admin bile bu paneli göremez (bkz. require_ow
 """
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models import Contact, AdSyncState, User
 from app.auth import require_owner
 from app.utils import iso_utc
@@ -191,9 +191,22 @@ def system_health(request: Request, _: User = Depends(require_owner), db: Sessio
 
 
 @router.post("/system/instagram/backfill-usernames")
-def system_backfill_usernames(request: Request, _: User = Depends(require_owner),
-                              db: Session = Depends(get_db)):
-    """Yer tutucu isimde kalmış Instagram kişilerinin adını @handle ile toplu günceller.
-    Token yenilendikten sonra kullanılır (webhook.backfill_instagram_usernames yeniden kullanılır)."""
+def system_backfill_usernames(request: Request, background: BackgroundTasks,
+                              _: User = Depends(require_owner)):
+    """Backfill'i arka planda başlatır — Railway'in 300s edge timeout'una takılmasın
+    diye request hemen döner. Sonuç konteyner logunda görünür."""
     from app.api.webhook import backfill_instagram_usernames
-    return backfill_instagram_usernames(request.app.state.sync_http, db)
+    client = request.app.state.sync_http
+
+    def _run():
+        with SessionLocal() as bg_db:
+            try:
+                result = backfill_instagram_usernames(client, bg_db)
+                print(f"[backfill-usernames] tamamlandı: {result}")
+            except Exception as e:
+                print(f"[backfill-usernames] hata: {e}")
+
+    background.add_task(_run)
+    return {"status": "started",
+            "message": "Backfill arka planda başlatıldı. Kişi sayısına göre birkaç dakika sürebilir. "
+                       "Bittiğinde kişi listesini yenileyip kontrol edin."}
